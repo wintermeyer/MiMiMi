@@ -55,6 +55,12 @@ if config_env() == :prod do
 
   config :mimimi, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
+  # Hot Deploy Configuration
+  config :mimimi, Mimimi.HotDeploy,
+    enabled: System.get_env("HOT_DEPLOY_ENABLED", "true") in ["true", "1"],
+    upgrades_dir: System.get_env("HOT_DEPLOY_DIR", "/var/www/mimimi/shared/hot-upgrades"),
+    check_interval: String.to_integer(System.get_env("HOT_DEPLOY_CHECK_INTERVAL", "10000"))
+
   config :mimimi, MimimiWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [

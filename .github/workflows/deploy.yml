@@ -1,0 +1,94 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Test & Verify
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mimimi_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.19'
+          otp-version: '28.0'
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Run precommit checks
+        env:
+          MIX_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost/mimimi_test
+        run: mix precommit
+
+  deploy:
+    needs: test
+    runs-on: self-hosted
+    name: Build & Deploy (Hybrid Hot/Cold)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: mix deps.get --only prod
+
+      - name: Compile application
+        env:
+          MIX_ENV: prod
+        run: mix compile
+
+      - name: Build assets
+        env:
+          MIX_ENV: prod
+        run: mix assets.deploy
+
+      - name: Build release
+        env:
+          MIX_ENV: prod
+        run: mix release --overwrite
+
+      - name: Create release tarball
+        run: |
+          cd _build/prod/rel/mimimi
+          tar -czf ../../../prod/mimimi-0.1.0.tar.gz .
+          cd -
+          ls -lh _build/prod/mimimi-*.tar.gz
+
+      - name: Deploy release (Hot Upgrade or Cold Deploy)
+        run: ./scripts/deploy.sh
+
+      - name: Verify deployment
+        run: |
+          sleep 5
+          curl -f http://localhost:4019 || exit 1

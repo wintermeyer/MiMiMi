@@ -7,6 +7,9 @@ defmodule Mimimi.Application do
 
   @impl true
   def start(_type, _args) do
+    # Enable hot code upgrades before starting supervision tree
+    Mimimi.HotDeploy.startup_reapply_current()
+
     children = [
       MimimiWeb.Telemetry,
       Mimimi.Repo,
