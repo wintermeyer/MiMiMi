@@ -8,7 +8,7 @@
 import Config
 
 config :mimimi,
-  # ecto_repos: [Mimimi.Repo],
+  ecto_repos: [Mimimi.Repo],
   generators: [timestamp_type: :utc_datetime]
 
 # Configures the endpoint
