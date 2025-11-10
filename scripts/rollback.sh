@@ -136,7 +136,7 @@ rollback_to_release() {
         print_success "Rollback successful! Application is running."
         echo ""
         print_info "Checking application health..."
-        if curl -f -s --max-time 10 http://localhost:4019/health > /dev/null 2>&1; then
+        if curl -f -s --max-time 10 http://localhost:4020/health > /dev/null 2>&1; then
             print_success "Application health check passed!"
         else
             print_warning "Health check failed. Check logs: sudo journalctl -u $APP_NAME -n 50"

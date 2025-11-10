@@ -9,7 +9,7 @@ SHARED_DIR="$DEPLOY_DIR/shared"
 BACKUP_DIR="$SHARED_DIR/backups"
 
 # Health check configuration
-HEALTH_CHECK_URL="http://localhost:4019/health"
+HEALTH_CHECK_URL="http://localhost:4020/health"
 HEALTH_CHECK_TIMEOUT=30
 HEALTH_CHECK_RETRIES=6
 
