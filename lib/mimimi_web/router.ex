@@ -20,6 +20,13 @@ defmodule MimimiWeb.Router do
     get "/", PageController, :home
   end
 
+  # Health check endpoint for deployment verification
+  scope "/", MimimiWeb do
+    pipe_through :api
+
+    get "/health", HealthController, :index
+  end
+
   # Other scopes may use custom stacks.
   # scope "/api", MimimiWeb do
   #   pipe_through :api

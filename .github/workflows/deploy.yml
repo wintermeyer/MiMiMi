@@ -88,7 +88,25 @@ jobs:
       - name: Deploy release
         run: ./scripts/deploy.sh
 
-      - name: Verify deployment
+      - name: Verify deployment health
         run: |
-          sleep 5
-          curl -f http://localhost:4020 || exit 1
+          echo "Waiting for health check endpoint..."
+          sleep 3
+
+          # The deploy script already performs comprehensive health checks
+          # This is an additional verification that the health endpoint is accessible
+          if curl -f -s http://localhost:4019/health | jq -e '.healthy == true' > /dev/null; then
+            echo "✅ Health check passed - application is healthy"
+          else
+            echo "❌ Health check failed - application may not be fully operational"
+            exit 1
+          fi
+
+      - name: Display deployment status
+        if: always()
+        run: |
+          echo "=== Deployment Status ==="
+          systemctl status mimimi --no-pager || true
+          echo ""
+          echo "=== Recent Application Logs ==="
+          sudo journalctl -u mimimi -n 20 --no-pager || true

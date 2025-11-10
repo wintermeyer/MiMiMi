@@ -735,6 +735,45 @@ EOF
 chmod +x scripts/deploy.sh
 ```
 
+**Note:** The actual deployment script in `scripts/deploy.sh` includes advanced features:
+- Automated rollback on failure
+- Database backup before migrations
+- Comprehensive health checks with retries
+- Cleanup of old releases and backups
+
+For the complete, production-ready deployment script, see the `scripts/deploy.sh` file in your repository.
+
+### Step 10.3b: Create Rollback Script
+
+Now create the rollback utility for easy manual rollbacks:
+
+```bash
+# The rollback script is included in your repository at scripts/rollback.sh
+# Make it executable
+chmod +x scripts/rollback.sh
+```
+
+**Rollback script usage:**
+```bash
+# Interactive mode (menu-driven)
+./scripts/rollback.sh
+
+# Quick rollback to previous release
+./scripts/rollback.sh previous
+
+# List all releases
+./scripts/rollback.sh list
+
+# List all database backups
+./scripts/rollback.sh backups
+```
+
+This script provides an easy interface for:
+- Rolling back to previous or specific releases
+- Restoring database backups
+- Checking current deployment status
+- Viewing application logs
+
 ### Step 10.4: Create GitHub Actions Workflow
 
 **IMPORTANT:** Replace `<app_name>` and `<your_port>` with your actual values in the workflow file!
@@ -861,6 +900,10 @@ PHX_SERVER=true
 
 # Optional
 ECTO_IPV6=false
+
+# Deployment Configuration
+# Set to false to skip pre-deployment backups (recommended for databases >50GB)
+ENABLE_PREDEPLOY_BACKUP=true
 EOF
 ```
 
@@ -1064,6 +1107,88 @@ exit
 
 **✅ Database backups are now automated!**
 
+### Step 13.2: Understanding Backup Strategy
+
+Your deployment system includes **two types of backups**:
+
+**1. Daily Automated Backups** (configured above)
+- Run via cron at 2 AM daily
+- Store in `/var/www/<app_name>/shared/backups/<app_name>_YYYYMMDD.sql.gz`
+- Keep for 30 days
+- Use gzipped SQL format for portability
+
+**2. Pre-Deployment Backups** (automatic during deployment)
+- Created before every database migration
+- Store in `/var/www/<app_name>/shared/backups/pre-deploy-*.dump`
+- Use PostgreSQL custom format (20-30% faster)
+- Keep last 10 backups
+- Can be disabled via `.env` configuration
+
+### Step 13.3: When to Disable Pre-Deployment Backups
+
+Pre-deployment backups provide an extra safety net but may impact deployment speed for large databases.
+
+**Disable pre-deployment backups when:**
+
+✅ **Large database (>50GB):**
+- Backup takes >5 minutes
+- Significantly delays deployment pipeline
+- I/O impact on production server
+
+✅ **Already have robust backup system:**
+- Daily automated backups running (configured above)
+- External backup solution (pgBackRest, Barman, cloud snapshots)
+- WAL archiving with Point-in-Time Recovery (PITR)
+
+✅ **High deployment frequency:**
+- Multiple deployments per day
+- Fast iteration cycles
+- Development/staging environments
+
+✅ **Database changes are minimal:**
+- Mostly application-only updates (no migrations)
+- Using hot code upgrades (no schema changes)
+- Read-heavy workloads
+
+**Keep pre-deployment backups when:**
+
+❌ **Small database (<10GB)** - Fast, low-impact safety measure
+❌ **Infrequent deployments** - Extra safety for rare updates
+❌ **No other backup system** - Critical safety measure
+❌ **High-risk migrations** - Complex schema changes
+
+**To disable pre-deployment backups:**
+
+```bash
+# On your server, edit the .env file
+sudo su - <deploy_user>
+nano /var/www/<app_name>/shared/.env
+
+# Add this line:
+ENABLE_PREDEPLOY_BACKUP=false
+
+# Save and exit (Ctrl+X, Y, Enter)
+```
+
+**Performance comparison:**
+
+| Database Size | pg_dump Time | Custom Format | Impact |
+|---------------|-------------|---------------|---------|
+| 1 GB | ~30 seconds | ~20 seconds | ✅ Minimal |
+| 10 GB | ~5 minutes | ~3 minutes | ⚠️ Moderate |
+| 50 GB | ~25 minutes | ~15 minutes | ❌ Significant |
+| 100+ GB | ~1+ hour | ~30+ minutes | ❌ Prohibitive |
+
+**Note:** Your deployment script uses the optimized custom format (`--format=custom --compress=6`) which is 20-30% faster than plain SQL dumps.
+
+**Alternative for very large databases:**
+
+If you have a very large database (>100GB), consider:
+- **File system snapshots** (AWS EBS, LVM, ZFS) - Instant backups
+- **pg_basebackup** - Physical backups with WAL archiving
+- **pgBackRest** - Enterprise backup tool with incremental backups
+- **Managed database services** - Automated backup/restore (AWS RDS, Google Cloud SQL)
+
 ---
 
 ## Part 14: Security Hardening
@@ -1204,9 +1329,63 @@ sudo systemctl start <app_name>
 sudo systemctl status <app_name>
 ```
 
-### Manual Rollback
+### Automated Rollback
 
-If a deployment fails:
+**Good news!** Your deployment system includes automatic rollback. If a deployment fails, the system automatically:
+
+1. Detects the failure (migration errors, health check failures, service startup issues)
+2. Restores the previous release symlink
+3. Restarts the application with the working code
+4. Cleans up the failed release directory
+
+**What triggers automatic rollback:**
+- Database migration failures
+- Application startup failures
+- Health check failures (HTTP endpoint not responding)
+- Service fails to activate within timeout
+
+**Database safety:**
+- A database backup is created before every migration (configurable)
+- Backups use PostgreSQL custom format (20-30% faster than plain SQL)
+- Backups are stored in `/var/www/<app_name>/shared/backups/pre-deploy-*.dump`
+- Last 10 pre-deployment backups are kept automatically
+- Can be disabled for large databases via `ENABLE_PREDEPLOY_BACKUP=false` in `.env`
+
+### Manual Rollback with Rollback Script
+
+The easiest way to manually rollback is using the rollback utility:
+
+```bash
+# Switch to deployment user
+sudo su - <deploy_user>
+
+# Run the rollback script
+cd /var/www/<app_name>/repo
+./scripts/rollback.sh
+```
+
+**Rollback script features:**
+1. **Quick rollback to previous release** - One command rollback
+2. **Interactive menu** - Choose specific release or backup to restore
+3. **List releases** - View all available releases
+4. **Database restore** - Restore from any backup
+5. **Status check** - View current deployment status and logs
+
+**Quick rollback (non-interactive):**
+```bash
+# Rollback to previous release immediately
+./scripts/rollback.sh previous
+
+# List all releases
+./scripts/rollback.sh list
+
+# List all database backups
+./scripts/rollback.sh backups
+```
+
+### Manual Rollback (Advanced)
+
+If you need to rollback manually without the script:
 
 ```bash
 # Switch to deployment user
@@ -1228,6 +1407,15 @@ sudo systemctl restart <app_name>
 
 ### Restore Database Backup
 
+**Using the rollback script (recommended):**
+```bash
+sudo su - <deploy_user>
+cd /var/www/<app_name>/repo
+./scripts/rollback.sh
+# Then select option 4 to restore database from backup
+```
+
+**Manual database restore:**
 ```bash
 # List backups
 sudo ls -lh /var/www/<app_name>/shared/backups/
@@ -1315,20 +1503,34 @@ sudo cat /etc/sudoers.d/<deploy_user>
 - ✅ Running automated tests before deployment
 - ✅ **Performing hot code upgrades (<1s downtime) for most deployments**
 - ✅ **Automatically falling back to cold deploy when needed**
-- ✅ Running database migrations automatically
+- ✅ **Automated rollback on deployment failures**
+- ✅ Running database migrations automatically with pre-migration backups
+- ✅ Comprehensive health checks (HTTP endpoint verification)
 - ✅ Backing up database daily
 - ✅ Protected by firewall and fail2ban
 - ✅ Keeping old releases for easy rollback
+- ✅ Interactive rollback script for manual rollbacks
 
 **Every time you push to `main`:**
 1. GitHub Actions runs your tests
 2. If tests pass, it builds a release
 3. Deploys to your server automatically
-4. **Intelligently chooses hot upgrade (zero downtime) or cold deploy**
-5. Runs database migrations (if needed)
-6. For hot upgrades: suspends processes, loads new code, resumes (<1s)
-7. For cold deploys: restarts the application with minimal downtime (5-10s)
-8. Verifies the deployment succeeded
+4. **Creates database backup before migrations**
+5. **Intelligently chooses hot upgrade (zero downtime) or cold deploy**
+6. Runs database migrations (if needed)
+7. For hot upgrades: suspends processes, loads new code, resumes (<1s)
+8. For cold deploys: restarts the application with minimal downtime (5-10s)
+9. **Performs comprehensive health checks (service + HTTP endpoint)**
+10. **Automatically rolls back on failure** (restores previous release + restarts)
+11. Cleans up old releases and backups
+
+**Deployment Safety Features:**
+- 🛡️ **Automatic rollback** on migration failures, startup failures, or health check failures
+- 💾 **Pre-deployment database backups** created before every migration
+- 🏥 **Health endpoint** verifies application + database connectivity
+- 🔄 **6 retry attempts** with 5-second intervals before declaring failure
+- 📝 **Detailed logging** of all deployment steps and failures
+- 🧹 **Automatic cleanup** of failed releases
 
 **Hot Code Upgrade Benefits:**
 - 🚀 **<1 second deployment** for most changes
@@ -1336,5 +1538,11 @@ sudo cat /etc/sudoers.d/<deploy_user>
 - 🌐 **No connection drops** for active users
 - 📱 **Mobile-friendly** - users don't notice updates
 - 🎯 **Automatic fallback** to cold deploy when needed
+
+**Rollback Options:**
+- ⚡ **Automatic** - Deployment script rolls back on any failure
+- 🎮 **Interactive** - Use `./scripts/rollback.sh` for menu-driven rollback
+- ⚡ **Quick** - Use `./scripts/rollback.sh previous` for one-command rollback
+- 🗄️ **Database** - Restore from any backup using the rollback script
 
 **Need help?** Check the Troubleshooting section above or review the logs with `sudo journalctl -u <app_name> -f`
