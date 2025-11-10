@@ -91,4 +91,4 @@ jobs:
       - name: Verify deployment
         run: |
           sleep 5
-          curl -f http://localhost:4019 || exit 1
+          curl -f http://localhost:4020 || exit 1

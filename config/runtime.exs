@@ -59,7 +59,8 @@ if config_env() == :prod do
   config :mimimi, Mimimi.HotDeploy,
     enabled: true,
     upgrades_dir: "/var/www/mimimi/shared/hot-upgrades",
-    check_interval: 10_000  # Check every 10 seconds
+    # Check every 10 seconds
+    check_interval: 10_000
 
   config :mimimi, MimimiWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
