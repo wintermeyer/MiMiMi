@@ -33,7 +33,7 @@ Throughout this guide, replace these placeholders with your actual values:
 - `<deploy_user>` - Your deployment username (e.g., `mimimi`, `phoenix`, `myapp`)
 - `<app_name>` - Your application name in lowercase (e.g., `mimimi`, `myapp`)
 - `<AppName>` - Your application module name in PascalCase (e.g., `Mimimi`, `MyApp`)
-- `<your_port>` - Your application port (e.g., `4019`, `4000`)
+- `<your_port>` - Your application port (e.g., `4020`, `4000`)
 - `<your_username>` - Your GitHub username
 - `<your_domain>` - Your domain name (e.g., `example.com`)
 
@@ -299,7 +299,7 @@ nano /var/www/<app_name>/shared/.env
 
 # Find the line: PHX_HOST=<your_domain>
 # Change it to your actual domain or server IP
-# Also verify PORT is set to your desired port (e.g., 4019, 4000)
+# Also verify PORT is set to your desired port (e.g., 4020, 4000)
 # Save and exit (Ctrl+X, then Y, then Enter)
 ```
 

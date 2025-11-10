@@ -95,7 +95,7 @@ jobs:
 
           # The deploy script already performs comprehensive health checks
           # This is an additional verification that the health endpoint is accessible
-          if curl -f -s http://localhost:4019/health | jq -e '.healthy == true' > /dev/null; then
+          if curl -f -s http://localhost:4020/health | grep -q '"healthy":true'; then
             echo "✅ Health check passed - application is healthy"
           else
             echo "❌ Health check failed - application may not be fully operational"
