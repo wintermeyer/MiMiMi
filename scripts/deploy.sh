@@ -40,7 +40,7 @@ echo "==> Waiting for application to start..."
 sleep 5
 
 echo "==> Checking application status"
-if sudo systemctl is-active --quiet mimimi; then
+if systemctl is-active --quiet mimimi; then
     echo "✅ Deployment successful!"
 
     # Clean up old releases (keep last 5)
