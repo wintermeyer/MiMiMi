@@ -55,7 +55,7 @@ jobs:
   deploy:
     needs: test
     runs-on: self-hosted
-    name: Build & Deploy (Hybrid Hot/Cold)
+    name: Build & Deploy
 
     steps:
       - uses: actions/checkout@v4
@@ -85,7 +85,7 @@ jobs:
           cd -
           ls -lh _build/prod/mimimi-*.tar.gz
 
-      - name: Deploy release (Hot Upgrade or Cold Deploy)
+      - name: Deploy release
         run: ./scripts/deploy.sh
 
       - name: Verify deployment

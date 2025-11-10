@@ -57,9 +57,9 @@ if config_env() == :prod do
 
   # Hot Deploy Configuration
   config :mimimi, Mimimi.HotDeploy,
-    enabled: System.get_env("HOT_DEPLOY_ENABLED", "true") in ["true", "1"],
-    upgrades_dir: System.get_env("HOT_DEPLOY_DIR", "/var/www/mimimi/shared/hot-upgrades"),
-    check_interval: String.to_integer(System.get_env("HOT_DEPLOY_CHECK_INTERVAL", "10000"))
+    enabled: true,
+    upgrades_dir: "/var/www/mimimi/shared/hot-upgrades",
+    check_interval: 10_000  # Check every 10 seconds
 
   config :mimimi, MimimiWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],

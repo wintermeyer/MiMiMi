@@ -35,3 +35,16 @@ mimimi-*.tar
 npm-debug.log
 /assets/node_modules/
 
+
+# Release builds
+_build/
+*.tar.gz
+
+# Environment files (NEVER commit these!)
+.env
+.env.*
+!.env.example
+
+# Ensure these are also ignored
+/priv/static/
+/tmp/
