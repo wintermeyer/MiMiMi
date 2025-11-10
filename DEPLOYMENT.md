@@ -476,10 +476,10 @@ sudo visudo -f /etc/sudoers.d/mimimi
 Add this single line (copy-paste exactly):
 
 ```
-mimimi ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart mimimi, /usr/bin/systemctl status mimimi, /usr/bin/systemctl stop mimimi, /usr/bin/systemctl start mimimi, /usr/bin/systemctl is-active mimimi, /usr/bin/journalctl -u mimimi *
+mimimi ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart mimimi, /usr/bin/systemctl status mimimi, /usr/bin/systemctl stop mimimi, /usr/bin/systemctl start mimimi, /usr/bin/journalctl -u mimimi *
 ```
 
-**Note:** If this doesn't work, check the actual path with `which systemctl` and update accordingly.
+**Note:** We don't include `is-active` in the sudoers file because checking service status doesn't require elevated privileges. Only commands that modify the service (restart, stop, start) need sudo.
 
 Save and exit (Ctrl+X, then Y, then Enter).
 
@@ -684,7 +684,7 @@ echo "==> Waiting for application to start..."
 sleep 5
 
 echo "==> Checking application status"
-if sudo systemctl is-active --quiet mimimi; then
+if systemctl is-active --quiet mimimi; then
     echo "✅ Deployment successful!"
 
     # Clean up old releases (keep last 5)
