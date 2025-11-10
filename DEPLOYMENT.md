@@ -1,12 +1,41 @@
-# Step-by-Step Deployment Guide: Phoenix App on Debian Linux
+# Step-by-Step Hot Deployment Guide: Phoenix Framework App on Debian Linux
 
-This is a complete, step-by-step tutorial for deploying your MiMiMi Phoenix application to a Debian Linux server with automated GitHub deployments.
+NOTE: A significant portion of this deployment guide was adapted from
+Chris McCord's fly_deploy project: https://github.com/chrismccord/fly_deploy
+
+## What This Guide Offers
+
+This guide implements **hot code upgrades** - an Erlang/OTP feature that updates your Phoenix application while running, typically in <1 second, without disconnecting users.
+
+**Traditional deployments** require 5-10 seconds of downtime, drop WebSocket connections, and lose active sessions. **Hot upgrades** complete in <1s, preserve LiveView sessions, and keep all connections alive. The system automatically falls back to cold deploy when needed (migrations, config changes).
+
+### What You'll Build
+
+- **Hot code upgrades** - Sub-second deployments for most changes
+- **Automated deployments** - Push to `main` triggers deployment via GitHub Actions
+- **Safe database migrations** - Automatic migrations with fallback to cold deploy
+- **Automatic rollback** - Failed deployments roll back automatically
+- **Self-hosted GitHub Actions runner** - Build and deploy on your server
+
+---
+
+This is a complete, step-by-step tutorial for deploying your Phoenix application to a Debian Linux server with automated GitHub deployments.
 
 **Prerequisites:**
 - A fresh Debian Linux server (Bookworm 12 or newer)
 - SSH access with sudo privileges
 - A domain name pointed to your server (optional but recommended)
 - Your GitHub repository ready
+
+**Important: Variable Definitions**
+
+Throughout this guide, replace these placeholders with your actual values:
+- `<deploy_user>` - Your deployment username (e.g., `mimimi`, `phoenix`, `myapp`)
+- `<app_name>` - Your application name in lowercase (e.g., `mimimi`, `myapp`)
+- `<AppName>` - Your application module name in PascalCase (e.g., `Mimimi`, `MyApp`)
+- `<your_port>` - Your application port (e.g., `4019`, `4000`)
+- `<your_username>` - Your GitHub username
+- `<your_domain>` - Your domain name (e.g., `example.com`)
 
 **What you'll build:**
 - Automated deployments triggered by pushing to `main`
@@ -64,34 +93,34 @@ git --version           # Should show git version
 
 ## Part 2: Create Deployment User
 
-### Step 2.1: Create the `mimimi` User
+### Step 2.1: Create the Deployment User
 
 ```bash
-# Create user with home directory
-sudo useradd -m -s /bin/bash mimimi
+# Create user with home directory (replace <deploy_user> with your chosen username)
+sudo useradd -m -s /bin/bash <deploy_user>
 
 # Set a password for the user
-sudo passwd mimimi
+sudo passwd <deploy_user>
 # Enter a secure password when prompted
 ```
 
 ### Step 2.2: Create Application Directory Structure
 
 ```bash
-# Create main application directory
-sudo mkdir -p /var/www/mimimi
+# Create main application directory (replace <app_name> with your app name)
+sudo mkdir -p /var/www/<app_name>
 
-# Set ownership to mimimi user
-sudo chown -R mimimi:mimimi /var/www/mimimi
+# Set ownership to deployment user
+sudo chown -R <deploy_user>:<deploy_user> /var/www/<app_name>
 
-# Create subdirectories as mimimi user
-sudo -u mimimi mkdir -p /var/www/mimimi/{releases,shared,shared/backups}
+# Create subdirectories as deployment user
+sudo -u <deploy_user> mkdir -p /var/www/<app_name>/{releases,shared,shared/backups}
 ```
 
 **✓ Checkpoint:** Verify directory structure:
 ```bash
-ls -la /var/www/mimimi
-# Should show: releases, shared directories owned by mimimi:mimimi
+ls -la /var/www/<app_name>
+# Should show: releases, shared directories owned by <deploy_user>:<deploy_user>
 ```
 
 ---
@@ -112,16 +141,16 @@ source ~/.bashrc
 mise --version
 ```
 
-### Step 3.2: Install mise for mimimi User
+### Step 3.2: Install mise for Deployment User
 
 ```bash
-# Switch to mimimi user
-sudo su - mimimi
+# Switch to deployment user
+sudo su - <deploy_user>
 
-# Install mise for mimimi
+# Install mise
 curl https://mise.run | sh
 
-# Add mise to mimimi's shell
+# Add mise to user's shell
 echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc
 source ~/.bashrc
 
@@ -143,7 +172,7 @@ erl -version
 exit
 ```
 
-**✓ Checkpoint:** Both admin and mimimi users should have Erlang and Elixir installed.
+**✓ Checkpoint:** Both admin and deployment users should have Erlang and Elixir installed.
 
 ---
 
@@ -152,8 +181,8 @@ exit
 ### Step 4.1: Generate Secure Database Password
 
 ```bash
-# Switch to mimimi user
-sudo su - mimimi
+# Switch to deployment user
+sudo su - <deploy_user>
 
 # Generate a secure password and save it immediately to the .env file
 DB_PASSWORD=$(openssl rand -base64 32)
@@ -163,14 +192,14 @@ DB_PASSWORD=$(openssl rand -base64 32)
 DB_PASSWORD_ENCODED=$(printf '%s' "$DB_PASSWORD" | python3 -c "import sys; from urllib.parse import quote; print(quote(sys.stdin.read().strip(), safe=''))")
 
 # Create the .env file with the database password
-cat > /var/www/mimimi/shared/.env << EOF
+cat > /var/www/<app_name>/shared/.env << EOF
 # Database Configuration
-DATABASE_URL=postgresql://mimimi:${DB_PASSWORD_ENCODED}@localhost/mimimi_prod
+DATABASE_URL=postgresql://<deploy_user>:${DB_PASSWORD_ENCODED}@localhost/<app_name>_prod
 POOL_SIZE=10
 EOF
 
 # Secure the .env file
-chmod 600 /var/www/mimimi/shared/.env
+chmod 600 /var/www/<app_name>/shared/.env
 
 # Display the password for PostgreSQL setup (copy this now!)
 echo "==============================================="
@@ -199,14 +228,15 @@ sudo -u postgres psql
 ```sql
 -- In the PostgreSQL shell, run these commands:
 -- Replace 'PASTE_PASSWORD_HERE' with the password from Step 4.1
+-- Replace <deploy_user> and <app_name> with your actual values
 
-CREATE USER mimimi WITH PASSWORD 'PASTE_PASSWORD_HERE';
-CREATE DATABASE mimimi_prod OWNER mimimi;
+CREATE USER <deploy_user> WITH PASSWORD 'PASTE_PASSWORD_HERE';
+CREATE DATABASE <app_name>_prod OWNER <deploy_user>;
 
 -- Verify the database was created
-\l mimimi_prod
+\l <app_name>_prod
 
--- You should see mimimi_prod in the list with owner mimimi
+-- You should see <app_name>_prod in the list with owner <deploy_user>
 
 -- Exit PostgreSQL
 \q
@@ -214,9 +244,9 @@ CREATE DATABASE mimimi_prod OWNER mimimi;
 
 **✓ Checkpoint:** Test database connection:
 ```bash
-# Go back to the terminal where you're logged in as mimimi user
+# Go back to the terminal where you're logged in as deployment user
 # Test the connection using the DATABASE_URL from .env
-source /var/www/mimimi/shared/.env
+source /var/www/<app_name>/shared/.env
 psql "$DATABASE_URL" -c "SELECT version();"
 # Should show PostgreSQL version
 ```
@@ -228,17 +258,17 @@ psql "$DATABASE_URL" -c "SELECT version();"
 ### Step 5.1: Generate SECRET_KEY_BASE
 
 ```bash
-# Still as mimimi user
+# Still as deployment user
 # Generate SECRET_KEY_BASE (must be at least 64 bytes)
 SECRET_KEY_BASE=$(openssl rand -base64 64 | tr -d '\n')
 
 # Append to .env file
-cat >> /var/www/mimimi/shared/.env << EOF
+cat >> /var/www/<app_name>/shared/.env << EOF
 
 # Phoenix Configuration
 SECRET_KEY_BASE=${SECRET_KEY_BASE}
-PHX_HOST=yourdomain.com
-PORT=4019
+PHX_HOST=<your_domain>
+PORT=<your_port>
 PHX_SERVER=true
 
 # Optional
@@ -246,7 +276,7 @@ ECTO_IPV6=false
 EOF
 
 # Verify the .env file (check SECRET_KEY_BASE is at least 64 bytes)
-cat /var/www/mimimi/shared/.env
+cat /var/www/<app_name>/shared/.env
 echo ""
 echo "SECRET_KEY_BASE length: $(echo -n "$SECRET_KEY_BASE" | wc -c) bytes (must be >= 64)"
 ```
@@ -263,12 +293,13 @@ echo "SECRET_KEY_BASE length: $(echo -n "$SECRET_KEY_BASE" | wc -c) bytes (must 
 ### Step 5.2: Update PHX_HOST
 
 ```bash
-# Still as mimimi user
-# Replace 'yourdomain.com' with your actual domain
-nano /var/www/mimimi/shared/.env
+# Still as deployment user
+# Replace placeholders with your actual values
+nano /var/www/<app_name>/shared/.env
 
-# Find the line: PHX_HOST=yourdomain.com
-# Change 'yourdomain.com' to your actual domain or server IP
+# Find the line: PHX_HOST=<your_domain>
+# Change it to your actual domain or server IP
+# Also verify PORT is set to your desired port (e.g., 4019, 4000)
 # Save and exit (Ctrl+X, then Y, then Enter)
 ```
 
@@ -279,32 +310,32 @@ nano /var/www/mimimi/shared/.env
 ### Step 6.1: Create Service File
 
 ```bash
-# Exit mimimi user, back to admin
+# Exit deployment user, back to admin
 exit
 
-# Create systemd service file
-sudo nano /etc/systemd/system/mimimi.service
+# Create systemd service file (replace <app_name> with your app name)
+sudo nano /etc/systemd/system/<app_name>.service
 ```
 
-Paste this content:
+Paste this content (replace all placeholders):
 
 ```ini
 [Unit]
-Description=MiMiMi Phoenix Application
+Description=<AppName> Phoenix Application
 After=network.target postgresql.service
 
 [Service]
 Type=simple
-User=mimimi
-Group=mimimi
-WorkingDirectory=/var/www/mimimi/current
-EnvironmentFile=/var/www/mimimi/shared/.env
-ExecStart=/var/www/mimimi/current/bin/server
-ExecStop=/var/www/mimimi/current/bin/mimimi stop
+User=<deploy_user>
+Group=<deploy_user>
+WorkingDirectory=/var/www/<app_name>/current
+EnvironmentFile=/var/www/<app_name>/shared/.env
+ExecStart=/var/www/<app_name>/current/bin/server
+ExecStop=/var/www/<app_name>/current/bin/<app_name> stop
 Restart=on-failure
 RestartSec=5
 RemainAfterExit=no
-SyslogIdentifier=mimimi
+SyslogIdentifier=<app_name>
 
 [Install]
 WantedBy=multi-user.target
@@ -319,12 +350,12 @@ Save and exit (Ctrl+X, then Y, then Enter).
 sudo systemctl daemon-reload
 
 # Enable service to start on boot (but don't start it yet)
-sudo systemctl enable mimimi
+sudo systemctl enable <app_name>
 ```
 
 **✓ Checkpoint:** Verify service is enabled:
 ```bash
-systemctl is-enabled mimimi
+systemctl is-enabled <app_name>
 # Should output: enabled
 ```
 
@@ -336,22 +367,22 @@ systemctl is-enabled mimimi
 
 ```bash
 # Create nginx site configuration
-sudo nano /etc/nginx/sites-available/mimimi
+sudo nano /etc/nginx/sites-available/<app_name>
 ```
 
-Paste this content (replace `yourdomain.com` with your actual domain):
+Paste this content (replace all placeholders):
 
 ```nginx
-upstream mimimi {
-    server 127.0.0.1:4019;
+upstream <app_name> {
+    server 127.0.0.1:<your_port>;
 }
 
 server {
     listen 80;
-    server_name yourdomain.com;
+    server_name <your_domain>;
 
     location / {
-        proxy_pass http://mimimi;
+        proxy_pass http://<app_name>;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -364,7 +395,7 @@ server {
 
     # WebSocket support for LiveView
     location /live {
-        proxy_pass http://mimimi;
+        proxy_pass http://<app_name>;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -372,7 +403,7 @@ server {
 
     # Serve static files directly
     location ~ ^/(images|javascript|js|css|flash|media|static)/ {
-        root /var/www/mimimi/shared/static;
+        root /var/www/<app_name>/shared/static;
         expires 1y;
         add_header Cache-Control public;
         add_header Last-Modified "";
@@ -387,7 +418,7 @@ Save and exit.
 
 ```bash
 # Create symbolic link to enable site
-sudo ln -s /etc/nginx/sites-available/mimimi /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/<app_name> /etc/nginx/sites-enabled/
 
 # Test nginx configuration
 sudo nginx -t
@@ -420,8 +451,8 @@ sudo systemctl status nginx
 ### Step 8.2: Install Runner on Server
 
 ```bash
-# Switch to mimimi user
-sudo su - mimimi
+# Switch to deployment user
+sudo su - <deploy_user>
 
 # Create runner directory
 mkdir -p ~/actions-runner
@@ -435,7 +466,8 @@ tar xzf ./actions-runner-linux-x64-2.311.0.tar.gz
 
 # Configure runner
 # Copy the token from your GitHub page (from Step 8.1)
-./config.sh --url https://github.com/YOUR_USERNAME/MiMiMi --token YOUR_TOKEN_FROM_GITHUB
+# Replace <your_username> and <app_name> with your values
+./config.sh --url https://github.com/<your_username>/<app_name> --token YOUR_TOKEN_FROM_GITHUB
 ```
 
 **During configuration, answer these prompts:**
@@ -447,8 +479,8 @@ tar xzf ./actions-runner-linux-x64-2.311.0.tar.gz
 ### Step 8.3: Install Runner as Service
 
 ```bash
-# Still as mimimi user in ~/actions-runner
-sudo ./svc.sh install mimimi
+# Still as deployment user in ~/actions-runner
+sudo ./svc.sh install <deploy_user>
 
 # Start the runner
 sudo ./svc.sh start
@@ -465,18 +497,18 @@ exit
 - Refresh the page
 - You should see your runner listed as "Idle" with a green dot
 
-### Step 8.4: Grant mimimi User Systemd Permissions
+### Step 8.4: Grant Deployment User Systemd Permissions
 
 ```bash
 # As admin user
-# Create sudoers file for mimimi
-sudo visudo -f /etc/sudoers.d/mimimi
+# Create sudoers file (replace <deploy_user> with your deployment username)
+sudo visudo -f /etc/sudoers.d/<deploy_user>
 ```
 
-Add this single line (copy-paste exactly):
+Add this single line (replace all placeholders):
 
 ```
-mimimi ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart mimimi, /usr/bin/systemctl status mimimi, /usr/bin/systemctl stop mimimi, /usr/bin/systemctl start mimimi, /usr/bin/journalctl -u mimimi *
+<deploy_user> ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart <app_name>, /usr/bin/systemctl status <app_name>, /usr/bin/systemctl stop <app_name>, /usr/bin/systemctl start <app_name>, /usr/bin/journalctl -u <app_name> *
 ```
 
 **Note:** We don't include `is-active` in the sudoers file because checking service status doesn't require elevated privileges. Only commands that modify the service (restart, stop, start) need sudo.
@@ -485,13 +517,13 @@ Save and exit (Ctrl+X, then Y, then Enter).
 
 **✓ Checkpoint:** Test sudo permissions:
 ```bash
-# If you're the admin user, test as mimimi:
-sudo su - mimimi
+# If you're the admin user, test as deployment user:
+sudo su - <deploy_user>
 
-# Now as mimimi user, test the sudo permission:
-sudo systemctl status mimimi
+# Now as deployment user, test the sudo permission:
+sudo systemctl status <app_name>
 # Should show status without asking for password
-# (It's OK if it says "Unit mimimi.service could not be found" - we haven't created it yet)
+# (It's OK if it says "Unit <app_name>.service could not be found" - we haven't deployed yet)
 ```
 
 ---
@@ -503,15 +535,15 @@ This section sets up filesystem-based hot code upgrades, enabling near-zero down
 ### Step 9.1: Create Hot Upgrades Directory
 
 ```bash
-# On your server, as mimimi user
-sudo su - mimimi
+# On your server, as deployment user
+sudo su - <deploy_user>
 
 # Create hot upgrades directory
-mkdir -p /var/www/mimimi/shared/hot-upgrades
+mkdir -p /var/www/<app_name>/shared/hot-upgrades
 
 # Verify permissions
-ls -la /var/www/mimimi/shared/
-# Should show hot-upgrades directory owned by mimimi:mimimi
+ls -la /var/www/<app_name>/shared/
+# Should show hot-upgrades directory owned by <deploy_user>:<deploy_user>
 
 exit
 ```
@@ -521,44 +553,44 @@ exit
 **On your local machine:**
 
 ```bash
-# The HotDeploy module has already been created at lib/mimimi/hot_deploy.ex
+# The HotDeploy module should be created at lib/<app_name>/hot_deploy.ex
 # Now configure it in config/runtime.exs
 
 # Edit config/runtime.exs and add this configuration for production:
 ```
 
-Add this to your `config/runtime.exs` in the production section:
+Add this to your `config/runtime.exs` in the production section (replace placeholders):
 
 ```elixir
 if config_env() == :prod do
   # ... existing config ...
 
   # Hot Deploy Configuration
-  config :mimimi, Mimimi.HotDeploy,
+  config :<app_name>, <AppName>.HotDeploy,
     enabled: true,
-    upgrades_dir: "/var/www/mimimi/shared/hot-upgrades",
+    upgrades_dir: "/var/www/<app_name>/shared/hot-upgrades",
     check_interval: 10_000  # Check every 10 seconds
 end
 ```
 
 ### Step 9.3: Enable Hot Upgrades in Application
 
-Edit `lib/mimimi/application.ex` to call the hot deploy startup function:
+Edit `lib/<app_name>/application.ex` to call the hot deploy startup function (replace placeholders):
 
 ```elixir
-defmodule Mimimi.Application do
+defmodule <AppName>.Application do
   use Application
 
   @impl true
   def start(_type, _args) do
     # Enable hot code upgrades before starting supervision tree
-    Mimimi.HotDeploy.startup_reapply_current()
+    <AppName>.HotDeploy.startup_reapply_current()
 
     children = [
       # ... your existing children ...
     ]
 
-    opts = [strategy: :one_for_one, name: Mimimi.Supervisor]
+    opts = [strategy: :one_for_one, name: <AppName>.Supervisor]
     Supervisor.start_link(children, opts)
   end
 
@@ -604,7 +636,7 @@ Now we'll set up your local Phoenix project for automated deployment.
 
 ```bash
 # On your LOCAL machine, navigate to your project
-cd /path/to/your/MiMiMi/project
+cd /path/to/your/project
 
 # Create .tool-versions file
 cat > .tool-versions << 'EOF'
@@ -622,7 +654,7 @@ mix phx.gen.release
 # This creates:
 # - rel/overlays/bin/server
 # - rel/overlays/bin/migrate
-# - lib/mimimi/release.ex
+# - lib/<app_name>/release.ex
 ```
 
 **✓ Checkpoint:** Verify files were created:
@@ -630,23 +662,26 @@ mix phx.gen.release
 ls -la rel/overlays/bin/
 # Should show: server, migrate
 
-ls -la lib/mimimi/
+ls -la lib/<app_name>/
 # Should show: release.ex
 ```
 
 ### Step 10.3: Create Deployment Script (Now with Hot Upgrade Support!)
+
+**IMPORTANT:** Before running this command, replace `<deploy_user>` and `<app_name>` with your actual values throughout the script!
 
 ```bash
 # Create scripts directory
 mkdir -p scripts
 
 # Create deployment script
+# Replace <deploy_user> and <app_name> in the script below before saving
 cat > scripts/deploy.sh << 'EOF'
 #!/bin/bash
 set -e
 
-DEPLOY_USER="mimimi"
-DEPLOY_DIR="/var/www/mimimi"
+DEPLOY_USER="<deploy_user>"
+DEPLOY_DIR="/var/www/<app_name>"
 RELEASE_DIR="$DEPLOY_DIR/releases/$(date +%Y%m%d%H%M%S)"
 CURRENT_LINK="$DEPLOY_DIR/current"
 SHARED_DIR="$DEPLOY_DIR/shared"
@@ -655,7 +690,7 @@ echo "==> Creating release directory: $RELEASE_DIR"
 mkdir -p "$RELEASE_DIR"
 
 echo "==> Extracting release tarball"
-tar -xzf _build/prod/mimimi-*.tar.gz -C "$RELEASE_DIR"
+tar -xzf _build/prod/<app_name>-*.tar.gz -C "$RELEASE_DIR"
 
 echo "==> Linking shared environment"
 ln -sf "$SHARED_DIR/.env" "$RELEASE_DIR/.env"
@@ -678,13 +713,13 @@ if [ -n "$STATIC_DIR" ]; then
 fi
 
 echo "==> Restarting application"
-sudo systemctl restart mimimi
+sudo systemctl restart <app_name>
 
 echo "==> Waiting for application to start..."
 sleep 5
 
 echo "==> Checking application status"
-if systemctl is-active --quiet mimimi; then
+if systemctl is-active --quiet <app_name>; then
     echo "✅ Deployment successful!"
 
     # Clean up old releases (keep last 5)
@@ -702,11 +737,14 @@ chmod +x scripts/deploy.sh
 
 ### Step 10.4: Create GitHub Actions Workflow
 
+**IMPORTANT:** Replace `<app_name>` and `<your_port>` with your actual values in the workflow file!
+
 ```bash
 # Create .github/workflows directory
 mkdir -p .github/workflows
 
 # Create workflow file
+# Replace <app_name> and <your_port> in the workflow below before saving
 cat > .github/workflows/deploy.yml << 'EOF'
 name: Deploy to Production
 
@@ -725,7 +763,7 @@ jobs:
         image: postgres:15
         env:
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: mimimi_test
+          POSTGRES_DB: <app_name>_test
         ports:
           - 5432:5432
         options: >-
@@ -759,7 +797,7 @@ jobs:
       - name: Run precommit checks
         env:
           MIX_ENV: test
-          DATABASE_URL: postgres://postgres:postgres@localhost/mimimi_test
+          DATABASE_URL: postgres://postgres:postgres@localhost/<app_name>_test
         run: mix precommit
 
   deploy:
@@ -790,10 +828,10 @@ jobs:
 
       - name: Create release tarball
         run: |
-          cd _build/prod/rel/mimimi
-          tar -czf ../../../prod/mimimi-0.1.0.tar.gz .
+          cd _build/prod/rel/<app_name>
+          tar -czf ../../../prod/<app_name>-0.1.0.tar.gz .
           cd -
-          ls -lh _build/prod/mimimi-*.tar.gz
+          ls -lh _build/prod/<app_name>-*.tar.gz
 
       - name: Deploy release
         run: ./scripts/deploy.sh
@@ -801,7 +839,7 @@ jobs:
       - name: Verify deployment
         run: |
           sleep 5
-          curl -f http://localhost:4019 || exit 1
+          curl -f http://localhost:<your_port> || exit 1
 EOF
 ```
 
@@ -809,15 +847,16 @@ EOF
 
 ```bash
 # Create .env.example (safe to commit to Git)
+# Replace <deploy_user>, <app_name>, and <your_port> with your values
 cat > .env.example << 'EOF'
 # Database Configuration
-DATABASE_URL=postgresql://mimimi:your_password_here@localhost/mimimi_dev
+DATABASE_URL=postgresql://<deploy_user>:your_password_here@localhost/<app_name>_dev
 POOL_SIZE=10
 
 # Phoenix Configuration
 SECRET_KEY_BASE=run_mix_phx_gen_secret_to_generate
 PHX_HOST=localhost
-PORT=4019
+PORT=<your_port>
 PHX_SERVER=true
 
 # Optional
@@ -870,14 +909,14 @@ Your first deployment can be done automatically via GitHub Actions (which just t
 ### Step 11.1: Manual First Deployment
 
 ```bash
-# On your server, switch to mimimi user
-sudo su - mimimi
+# On your server, switch to deployment user
+sudo su - <deploy_user>
 
-# Navigate to /var/www/mimimi
-cd /var/www/mimimi
+# Navigate to application directory
+cd /var/www/<app_name>
 
-# Clone your repository
-git clone https://github.com/YOUR_USERNAME/MiMiMi.git repo
+# Clone your repository (replace placeholders)
+git clone https://github.com/<your_username>/<app_name>.git repo
 cd repo
 
 # Install Erlang/Elixir versions from .tool-versions
@@ -886,7 +925,7 @@ mise install
 # Set up environment
 export MIX_ENV=prod
 set -a  # automatically export all variables
-source /var/www/mimimi/shared/.env
+source /var/www/<app_name>/shared/.env
 set +a  # stop automatically exporting
 
 # Install dependencies
@@ -902,33 +941,33 @@ mix assets.deploy
 mix release
 
 # Create tarball from the release
-cd _build/prod/rel/mimimi
-tar -czf ../../../prod/mimimi-0.1.0.tar.gz .
+cd _build/prod/rel/<app_name>
+tar -czf ../../../prod/<app_name>-0.1.0.tar.gz .
 cd -
 
 # Create first release directory
-RELEASE_DIR="/var/www/mimimi/releases/$(date +%Y%m%d%H%M%S)"
+RELEASE_DIR="/var/www/<app_name>/releases/$(date +%Y%m%d%H%M%S)"
 mkdir -p "$RELEASE_DIR"
 
 # Extract release
-tar -xzf _build/prod/mimimi-*.tar.gz -C "$RELEASE_DIR"
+tar -xzf _build/prod/<app_name>-*.tar.gz -C "$RELEASE_DIR"
 
 # Link to current
-ln -sfn "$RELEASE_DIR" /var/www/mimimi/current
+ln -sfn "$RELEASE_DIR" /var/www/<app_name>/current
 
 # Create static files symlink (for nginx)
 STATIC_DIR=$(find "$RELEASE_DIR/lib" -type d -name "priv" | head -n1)
-ln -sfn "$STATIC_DIR/static" /var/www/mimimi/shared/static
+ln -sfn "$STATIC_DIR/static" /var/www/<app_name>/shared/static
 
 # Run migrations
-cd /var/www/mimimi/current
+cd /var/www/<app_name>/current
 ./bin/migrate
 
 # Start the application
-sudo systemctl start mimimi
+sudo systemctl start <app_name>
 
 # Check status
-sudo systemctl status mimimi
+sudo systemctl status <app_name>
 # Should show: active (running)
 
 # Exit back to admin
@@ -939,11 +978,11 @@ exit
 
 ```bash
 # Check if application is responding
-curl http://localhost:4019
+curl http://localhost:<your_port>
 # Should show HTML response
 
 # Check logs
-sudo journalctl -u mimimi -n 50
+sudo journalctl -u <app_name> -n 50
 # Should show application startup logs
 
 # Check nginx
@@ -951,7 +990,7 @@ curl http://your-server-ip
 # Should show your application
 
 # Or from your browser
-# Visit: http://yourdomain.com (or http://your-server-ip)
+# Visit: http://<your_domain> (or http://your-server-ip)
 ```
 
 **✅ SUCCESS!** Your application is now deployed!
@@ -970,8 +1009,8 @@ sudo apt install -y certbot python3-certbot-nginx
 ### Step 12.2: Obtain SSL Certificate
 
 ```bash
-# Get SSL certificate (replace yourdomain.com with your actual domain)
-sudo certbot --nginx -d yourdomain.com
+# Get SSL certificate (replace <your_domain> with your actual domain)
+sudo certbot --nginx -d <your_domain>
 
 # Follow the prompts:
 # - Enter your email address
@@ -997,8 +1036,8 @@ sudo certbot renew --dry-run
 ### Step 13.1: Configure Cron Job
 
 ```bash
-# Switch to mimimi user
-sudo su - mimimi
+# Switch to deployment user
+sudo su - <deploy_user>
 
 # Edit crontab
 crontab -e
@@ -1006,14 +1045,14 @@ crontab -e
 # If prompted to choose an editor, select nano (usually option 1)
 ```
 
-Add these lines at the bottom:
+Add these lines at the bottom (replace placeholders):
 
 ```cron
 # Daily database backup at 2 AM
-0 2 * * * pg_dump -U mimimi mimimi_prod | gzip > /var/www/mimimi/shared/backups/mimimi_$(date +\%Y\%m\%d).sql.gz
+0 2 * * * pg_dump -U <deploy_user> <app_name>_prod | gzip > /var/www/<app_name>/shared/backups/<app_name>_$(date +\%Y\%m\%d).sql.gz
 
 # Clean backups older than 30 days at 3 AM
-0 3 * * * find /var/www/mimimi/shared/backups -name "mimimi_*.sql.gz" -mtime +30 -delete
+0 3 * * * find /var/www/<app_name>/shared/backups -name "<app_name>_*.sql.gz" -mtime +30 -delete
 ```
 
 Save and exit (Ctrl+X, then Y, then Enter).
@@ -1098,7 +1137,7 @@ sudo systemctl restart sshd
 
 ```bash
 # On your LOCAL machine
-cd /path/to/your/MiMiMi/project
+cd /path/to/your/project
 
 # Make a small change (e.g., edit README)
 echo "Testing deployment" >> README.md
@@ -1121,10 +1160,10 @@ git push origin main
 
 ```bash
 # On your server
-sudo journalctl -u mimimi -n 50
+sudo journalctl -u <app_name> -n 50
 
 # Check if application is running
-curl http://localhost:4019
+curl http://localhost:<your_port>
 
 # Visit your site in browser
 # Should show the updated application
@@ -1140,29 +1179,29 @@ curl http://localhost:4019
 
 ```bash
 # Real-time logs
-sudo journalctl -u mimimi -f
+sudo journalctl -u <app_name> -f
 
 # Last 100 lines
-sudo journalctl -u mimimi -n 100
+sudo journalctl -u <app_name> -n 100
 
 # Today's logs
-sudo journalctl -u mimimi --since today
+sudo journalctl -u <app_name> --since today
 ```
 
 ### Manual Deployment Commands
 
 ```bash
 # Restart application
-sudo systemctl restart mimimi
+sudo systemctl restart <app_name>
 
 # Stop application
-sudo systemctl stop mimimi
+sudo systemctl stop <app_name>
 
 # Start application
-sudo systemctl start mimimi
+sudo systemctl start <app_name>
 
 # Check status
-sudo systemctl status mimimi
+sudo systemctl status <app_name>
 ```
 
 ### Manual Rollback
@@ -1170,31 +1209,31 @@ sudo systemctl status mimimi
 If a deployment fails:
 
 ```bash
-# Switch to mimimi user
-sudo su - mimimi
+# Switch to deployment user
+sudo su - <deploy_user>
 
 # List releases
-cd /var/www/mimimi/releases
+cd /var/www/<app_name>/releases
 ls -lt
 
 # Link to previous release (replace TIMESTAMP with actual timestamp)
-ln -sfn /var/www/mimimi/releases/TIMESTAMP /var/www/mimimi/current
+ln -sfn /var/www/<app_name>/releases/TIMESTAMP /var/www/<app_name>/current
 
-# Exit mimimi user
+# Exit deployment user
 exit
 
 # Restart application
-sudo systemctl restart mimimi
+sudo systemctl restart <app_name>
 ```
 
 ### Restore Database Backup
 
 ```bash
 # List backups
-sudo ls -lh /var/www/mimimi/shared/backups/
+sudo ls -lh /var/www/<app_name>/shared/backups/
 
 # Restore a backup (replace DATE with actual date)
-sudo -u mimimi gunzip -c /var/www/mimimi/shared/backups/mimimi_DATE.sql.gz | sudo -u mimimi psql mimimi_prod
+sudo -u <deploy_user> gunzip -c /var/www/<app_name>/shared/backups/<app_name>_DATE.sql.gz | sudo -u <deploy_user> psql <app_name>_prod
 ```
 
 ---
@@ -1205,20 +1244,20 @@ sudo -u mimimi gunzip -c /var/www/mimimi/shared/backups/mimimi_DATE.sql.gz | sud
 
 ```bash
 # Check detailed logs
-sudo journalctl -u mimimi -n 200 --no-pager
+sudo journalctl -u <app_name> -n 200 --no-pager
 
 # Check if port is in use
-sudo netstat -tlnp | grep 4019
+sudo netstat -tlnp | grep <your_port>
 
 # Verify environment variables
-sudo -u mimimi cat /var/www/mimimi/shared/.env
+sudo -u <deploy_user> cat /var/www/<app_name>/shared/.env
 
 # Test release manually
-sudo su - mimimi
-cd /var/www/mimimi/current
-source /var/www/mimimi/shared/.env
-./bin/mimimi start
-./bin/mimimi pid
+sudo su - <deploy_user>
+cd /var/www/<app_name>/current
+source /var/www/<app_name>/shared/.env
+./bin/<app_name> start
+./bin/<app_name> pid
 exit
 ```
 
@@ -1226,7 +1265,7 @@ exit
 
 ```bash
 # Test PostgreSQL connection
-sudo -u mimimi psql -U mimimi -d mimimi_prod -h localhost
+sudo -u <deploy_user> psql -U <deploy_user> -d <app_name>_prod -h localhost
 
 # Check PostgreSQL is running
 sudo systemctl status postgresql
@@ -1239,7 +1278,7 @@ sudo tail -f /var/log/postgresql/postgresql-*-main.log
 
 ```bash
 # Check runner status
-sudo su - mimimi
+sudo su - <deploy_user>
 cd ~/actions-runner
 sudo ./svc.sh status
 
@@ -1253,14 +1292,14 @@ exit
 
 ```bash
 # Ensure correct ownership
-sudo chown -R mimimi:mimimi /var/www/mimimi
+sudo chown -R <deploy_user>:<deploy_user> /var/www/<app_name>
 
 # Check .env file permissions
-ls -la /var/www/mimimi/shared/.env
-# Should show: -rw------- 1 mimimi mimimi
+ls -la /var/www/<app_name>/shared/.env
+# Should show: -rw------- 1 <deploy_user> <deploy_user>
 
 # Check sudoers configuration
-sudo cat /etc/sudoers.d/mimimi
+sudo cat /etc/sudoers.d/<deploy_user>
 ```
 
 ---
@@ -1298,4 +1337,4 @@ sudo cat /etc/sudoers.d/mimimi
 - 📱 **Mobile-friendly** - users don't notice updates
 - 🎯 **Automatic fallback** to cold deploy when needed
 
-**Need help?** Check the Troubleshooting section above or review the logs with `sudo journalctl -u mimimi -f`
+**Need help?** Check the Troubleshooting section above or review the logs with `sudo journalctl -u <app_name> -f`
