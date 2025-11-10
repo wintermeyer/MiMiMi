@@ -1,6 +1,6 @@
 # Step-by-Step Deployment Guide: Phoenix App on Debian Linux
 
-This is a complete, step-by-step tutorial for deploying your Phoenix application to a Debian Linux server with automated GitHub deployments.
+This is a complete, step-by-step tutorial for deploying your MiMiMi Phoenix application to a Debian Linux server with automated GitHub deployments.
 
 **Prerequisites:**
 - A fresh Debian Linux server (Bookworm 12 or newer)
@@ -64,14 +64,14 @@ git --version           # Should show git version
 
 ## Part 2: Create Deployment User
 
-### Step 2.1: Create the `pmg` User
+### Step 2.1: Create the `mimimi` User
 
 ```bash
 # Create user with home directory
-sudo useradd -m -s /bin/bash pmg
+sudo useradd -m -s /bin/bash mimimi
 
 # Set a password for the user
-sudo passwd pmg
+sudo passwd mimimi
 # Enter a secure password when prompted
 ```
 
@@ -79,19 +79,19 @@ sudo passwd pmg
 
 ```bash
 # Create main application directory
-sudo mkdir -p /var/www/pmg
+sudo mkdir -p /var/www/mimimi
 
-# Set ownership to pmg user
-sudo chown -R pmg:pmg /var/www/pmg
+# Set ownership to mimimi user
+sudo chown -R mimimi:mimimi /var/www/mimimi
 
-# Create subdirectories as pmg user
-sudo -u pmg mkdir -p /var/www/pmg/{releases,shared,shared/backups}
+# Create subdirectories as mimimi user
+sudo -u mimimi mkdir -p /var/www/mimimi/{releases,shared,shared/backups}
 ```
 
 **✓ Checkpoint:** Verify directory structure:
 ```bash
-ls -la /var/www/pmg
-# Should show: releases, shared directories owned by pmg:pmg
+ls -la /var/www/mimimi
+# Should show: releases, shared directories owned by mimimi:mimimi
 ```
 
 ---
@@ -112,16 +112,16 @@ source ~/.bashrc
 mise --version
 ```
 
-### Step 3.2: Install mise for pmg User
+### Step 3.2: Install mise for mimimi User
 
 ```bash
-# Switch to pmg user
-sudo su - pmg
+# Switch to mimimi user
+sudo su - mimimi
 
-# Install mise for pmg
+# Install mise for mimimi
 curl https://mise.run | sh
 
-# Add mise to pmg's shell
+# Add mise to mimimi's shell
 echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc
 source ~/.bashrc
 
@@ -143,7 +143,7 @@ erl -version
 exit
 ```
 
-**✓ Checkpoint:** Both admin and pmg users should have Erlang and Elixir installed.
+**✓ Checkpoint:** Both admin and mimimi users should have Erlang and Elixir installed.
 
 ---
 
@@ -152,8 +152,8 @@ exit
 ### Step 4.1: Generate Secure Database Password
 
 ```bash
-# Switch to pmg user
-sudo su - pmg
+# Switch to mimimi user
+sudo su - mimimi
 
 # Generate a secure password and save it immediately to the .env file
 DB_PASSWORD=$(openssl rand -base64 32)
@@ -163,14 +163,14 @@ DB_PASSWORD=$(openssl rand -base64 32)
 DB_PASSWORD_ENCODED=$(printf '%s' "$DB_PASSWORD" | python3 -c "import sys; from urllib.parse import quote; print(quote(sys.stdin.read().strip(), safe=''))")
 
 # Create the .env file with the database password
-cat > /var/www/pmg/shared/.env << EOF
+cat > /var/www/mimimi/shared/.env << EOF
 # Database Configuration
-DATABASE_URL=postgresql://pmg:${DB_PASSWORD_ENCODED}@localhost/pmg_prod
+DATABASE_URL=postgresql://mimimi:${DB_PASSWORD_ENCODED}@localhost/mimimi_prod
 POOL_SIZE=10
 EOF
 
 # Secure the .env file
-chmod 600 /var/www/pmg/shared/.env
+chmod 600 /var/www/mimimi/shared/.env
 
 # Display the password for PostgreSQL setup (copy this now!)
 echo "==============================================="
@@ -200,13 +200,13 @@ sudo -u postgres psql
 -- In the PostgreSQL shell, run these commands:
 -- Replace 'PASTE_PASSWORD_HERE' with the password from Step 4.1
 
-CREATE USER pmg WITH PASSWORD 'PASTE_PASSWORD_HERE';
-CREATE DATABASE pmg_prod OWNER pmg;
+CREATE USER mimimi WITH PASSWORD 'PASTE_PASSWORD_HERE';
+CREATE DATABASE mimimi_prod OWNER mimimi;
 
 -- Verify the database was created
-\l pmg_prod
+\l mimimi_prod
 
--- You should see pmg_prod in the list with owner pmg
+-- You should see mimimi_prod in the list with owner mimimi
 
 -- Exit PostgreSQL
 \q
@@ -214,9 +214,9 @@ CREATE DATABASE pmg_prod OWNER pmg;
 
 **✓ Checkpoint:** Test database connection:
 ```bash
-# Go back to the terminal where you're logged in as pmg user
+# Go back to the terminal where you're logged in as mimimi user
 # Test the connection using the DATABASE_URL from .env
-source /var/www/pmg/shared/.env
+source /var/www/mimimi/shared/.env
 psql "$DATABASE_URL" -c "SELECT version();"
 # Should show PostgreSQL version
 ```
@@ -228,12 +228,12 @@ psql "$DATABASE_URL" -c "SELECT version();"
 ### Step 5.1: Generate SECRET_KEY_BASE
 
 ```bash
-# Still as pmg user
+# Still as mimimi user
 # Generate SECRET_KEY_BASE (must be at least 64 bytes)
 SECRET_KEY_BASE=$(openssl rand -base64 64 | tr -d '\n')
 
 # Append to .env file
-cat >> /var/www/pmg/shared/.env << EOF
+cat >> /var/www/mimimi/shared/.env << EOF
 
 # Phoenix Configuration
 SECRET_KEY_BASE=${SECRET_KEY_BASE}
@@ -246,7 +246,7 @@ ECTO_IPV6=false
 EOF
 
 # Verify the .env file (check SECRET_KEY_BASE is at least 64 bytes)
-cat /var/www/pmg/shared/.env
+cat /var/www/mimimi/shared/.env
 echo ""
 echo "SECRET_KEY_BASE length: $(echo -n "$SECRET_KEY_BASE" | wc -c) bytes (must be >= 64)"
 ```
@@ -263,9 +263,9 @@ echo "SECRET_KEY_BASE length: $(echo -n "$SECRET_KEY_BASE" | wc -c) bytes (must 
 ### Step 5.2: Update PHX_HOST
 
 ```bash
-# Still as pmg user
+# Still as mimimi user
 # Replace 'yourdomain.com' with your actual domain
-nano /var/www/pmg/shared/.env
+nano /var/www/mimimi/shared/.env
 
 # Find the line: PHX_HOST=yourdomain.com
 # Change 'yourdomain.com' to your actual domain or server IP
@@ -279,32 +279,32 @@ nano /var/www/pmg/shared/.env
 ### Step 6.1: Create Service File
 
 ```bash
-# Exit pmg user, back to admin
+# Exit mimimi user, back to admin
 exit
 
 # Create systemd service file
-sudo nano /etc/systemd/system/pmg.service
+sudo nano /etc/systemd/system/mimimi.service
 ```
 
 Paste this content:
 
 ```ini
 [Unit]
-Description=PMGP Phoenix Application
+Description=MiMiMi Phoenix Application
 After=network.target postgresql.service
 
 [Service]
 Type=simple
-User=pmg
-Group=pmg
-WorkingDirectory=/var/www/pmg/current
-EnvironmentFile=/var/www/pmg/shared/.env
-ExecStart=/var/www/pmg/current/bin/server
-ExecStop=/var/www/pmg/current/bin/pmgp stop
+User=mimimi
+Group=mimimi
+WorkingDirectory=/var/www/mimimi/current
+EnvironmentFile=/var/www/mimimi/shared/.env
+ExecStart=/var/www/mimimi/current/bin/server
+ExecStop=/var/www/mimimi/current/bin/mimimi stop
 Restart=on-failure
 RestartSec=5
 RemainAfterExit=no
-SyslogIdentifier=pmg
+SyslogIdentifier=mimimi
 
 [Install]
 WantedBy=multi-user.target
@@ -319,12 +319,12 @@ Save and exit (Ctrl+X, then Y, then Enter).
 sudo systemctl daemon-reload
 
 # Enable service to start on boot (but don't start it yet)
-sudo systemctl enable pmg
+sudo systemctl enable mimimi
 ```
 
 **✓ Checkpoint:** Verify service is enabled:
 ```bash
-systemctl is-enabled pmg
+systemctl is-enabled mimimi
 # Should output: enabled
 ```
 
@@ -336,13 +336,13 @@ systemctl is-enabled pmg
 
 ```bash
 # Create nginx site configuration
-sudo nano /etc/nginx/sites-available/pmg
+sudo nano /etc/nginx/sites-available/mimimi
 ```
 
 Paste this content (replace `yourdomain.com` with your actual domain):
 
 ```nginx
-upstream pmg {
+upstream mimimi {
     server 127.0.0.1:4019;
 }
 
@@ -351,7 +351,7 @@ server {
     server_name yourdomain.com;
 
     location / {
-        proxy_pass http://pmg;
+        proxy_pass http://mimimi;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -364,7 +364,7 @@ server {
 
     # WebSocket support for LiveView
     location /live {
-        proxy_pass http://pmg;
+        proxy_pass http://mimimi;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -372,7 +372,7 @@ server {
 
     # Serve static files directly
     location ~ ^/(images|javascript|js|css|flash|media|static)/ {
-        root /var/www/pmg/shared/static;
+        root /var/www/mimimi/shared/static;
         expires 1y;
         add_header Cache-Control public;
         add_header Last-Modified "";
@@ -387,7 +387,7 @@ Save and exit.
 
 ```bash
 # Create symbolic link to enable site
-sudo ln -s /etc/nginx/sites-available/pmg /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/mimimi /etc/nginx/sites-enabled/
 
 # Test nginx configuration
 sudo nginx -t
@@ -420,8 +420,8 @@ sudo systemctl status nginx
 ### Step 8.2: Install Runner on Server
 
 ```bash
-# Switch to pmg user
-sudo su - pmg
+# Switch to mimimi user
+sudo su - mimimi
 
 # Create runner directory
 mkdir -p ~/actions-runner
@@ -435,7 +435,7 @@ tar xzf ./actions-runner-linux-x64-2.311.0.tar.gz
 
 # Configure runner
 # Copy the token from your GitHub page (from Step 8.1)
-./config.sh --url https://github.com/YOUR_USERNAME/pmg --token YOUR_TOKEN_FROM_GITHUB
+./config.sh --url https://github.com/YOUR_USERNAME/MiMiMi --token YOUR_TOKEN_FROM_GITHUB
 ```
 
 **During configuration, answer these prompts:**
@@ -447,8 +447,8 @@ tar xzf ./actions-runner-linux-x64-2.311.0.tar.gz
 ### Step 8.3: Install Runner as Service
 
 ```bash
-# Still as pmg user in ~/actions-runner
-sudo ./svc.sh install pmg
+# Still as mimimi user in ~/actions-runner
+sudo ./svc.sh install mimimi
 
 # Start the runner
 sudo ./svc.sh start
@@ -465,18 +465,18 @@ exit
 - Refresh the page
 - You should see your runner listed as "Idle" with a green dot
 
-### Step 8.4: Grant pmg User Systemd Permissions
+### Step 8.4: Grant mimimi User Systemd Permissions
 
 ```bash
 # As admin user
-# Create sudoers file for pmg
-sudo visudo -f /etc/sudoers.d/pmg
+# Create sudoers file for mimimi
+sudo visudo -f /etc/sudoers.d/mimimi
 ```
 
 Add this single line (copy-paste exactly):
 
 ```
-pmg ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart pmg, /usr/bin/systemctl status pmg, /usr/bin/systemctl stop pmg, /usr/bin/systemctl start pmg, /usr/bin/systemctl is-active pmg, /usr/bin/journalctl -u pmg *
+mimimi ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart mimimi, /usr/bin/systemctl status mimimi, /usr/bin/systemctl stop mimimi, /usr/bin/systemctl start mimimi, /usr/bin/systemctl is-active mimimi, /usr/bin/journalctl -u mimimi *
 ```
 
 **Note:** If this doesn't work, check the actual path with `which systemctl` and update accordingly.
@@ -485,13 +485,13 @@ Save and exit (Ctrl+X, then Y, then Enter).
 
 **✓ Checkpoint:** Test sudo permissions:
 ```bash
-# If you're the admin user, test as pmg:
-sudo su - pmg
+# If you're the admin user, test as mimimi:
+sudo su - mimimi
 
-# Now as pmg user, test the sudo permission:
-sudo systemctl status pmg
+# Now as mimimi user, test the sudo permission:
+sudo systemctl status mimimi
 # Should show status without asking for password
-# (It's OK if it says "Unit pmg.service could not be found" - we haven't created it yet)
+# (It's OK if it says "Unit mimimi.service could not be found" - we haven't created it yet)
 ```
 
 ---
@@ -503,15 +503,15 @@ This section sets up filesystem-based hot code upgrades, enabling near-zero down
 ### Step 9.1: Create Hot Upgrades Directory
 
 ```bash
-# On your server, as pmg user
-sudo su - pmg
+# On your server, as mimimi user
+sudo su - mimimi
 
 # Create hot upgrades directory
-mkdir -p /var/www/pmg/shared/hot-upgrades
+mkdir -p /var/www/mimimi/shared/hot-upgrades
 
 # Verify permissions
-ls -la /var/www/pmg/shared/
-# Should show hot-upgrades directory owned by pmg:pmg
+ls -la /var/www/mimimi/shared/
+# Should show hot-upgrades directory owned by mimimi:mimimi
 
 exit
 ```
@@ -536,7 +536,7 @@ if config_env() == :prod do
   # Hot Deploy Configuration
   config :mimimi, Mimimi.HotDeploy,
     enabled: true,
-    upgrades_dir: "/var/www/pmg/shared/hot-upgrades",
+    upgrades_dir: "/var/www/mimimi/shared/hot-upgrades",
     check_interval: 10_000  # Check every 10 seconds
 end
 ```
@@ -604,7 +604,7 @@ Now we'll set up your local Phoenix project for automated deployment.
 
 ```bash
 # On your LOCAL machine, navigate to your project
-cd /path/to/your/pmg/project
+cd /path/to/your/MiMiMi/project
 
 # Create .tool-versions file
 cat > .tool-versions << 'EOF'
@@ -622,7 +622,7 @@ mix phx.gen.release
 # This creates:
 # - rel/overlays/bin/server
 # - rel/overlays/bin/migrate
-# - lib/pmgp/release.ex
+# - lib/mimimi/release.ex
 ```
 
 **✓ Checkpoint:** Verify files were created:
@@ -630,7 +630,7 @@ mix phx.gen.release
 ls -la rel/overlays/bin/
 # Should show: server, migrate
 
-ls -la lib/pmgp/
+ls -la lib/mimimi/
 # Should show: release.ex
 ```
 
@@ -645,8 +645,8 @@ cat > scripts/deploy.sh << 'EOF'
 #!/bin/bash
 set -e
 
-DEPLOY_USER="pmg"
-DEPLOY_DIR="/var/www/pmg"
+DEPLOY_USER="mimimi"
+DEPLOY_DIR="/var/www/mimimi"
 RELEASE_DIR="$DEPLOY_DIR/releases/$(date +%Y%m%d%H%M%S)"
 CURRENT_LINK="$DEPLOY_DIR/current"
 SHARED_DIR="$DEPLOY_DIR/shared"
@@ -655,7 +655,7 @@ echo "==> Creating release directory: $RELEASE_DIR"
 mkdir -p "$RELEASE_DIR"
 
 echo "==> Extracting release tarball"
-tar -xzf _build/prod/pmgp-*.tar.gz -C "$RELEASE_DIR"
+tar -xzf _build/prod/mimimi-*.tar.gz -C "$RELEASE_DIR"
 
 echo "==> Linking shared environment"
 ln -sf "$SHARED_DIR/.env" "$RELEASE_DIR/.env"
@@ -678,13 +678,13 @@ if [ -n "$STATIC_DIR" ]; then
 fi
 
 echo "==> Restarting application"
-sudo systemctl restart pmg
+sudo systemctl restart mimimi
 
 echo "==> Waiting for application to start..."
 sleep 5
 
 echo "==> Checking application status"
-if sudo systemctl is-active --quiet pmg; then
+if sudo systemctl is-active --quiet mimimi; then
     echo "✅ Deployment successful!"
 
     # Clean up old releases (keep last 5)
@@ -725,7 +725,7 @@ jobs:
         image: postgres:15
         env:
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: pmg_test
+          POSTGRES_DB: mimimi_test
         ports:
           - 5432:5432
         options: >-
@@ -759,7 +759,7 @@ jobs:
       - name: Run precommit checks
         env:
           MIX_ENV: test
-          DATABASE_URL: postgres://postgres:postgres@localhost/pmg_test
+          DATABASE_URL: postgres://postgres:postgres@localhost/mimimi_test
         run: mix precommit
 
   deploy:
@@ -790,10 +790,10 @@ jobs:
 
       - name: Create release tarball
         run: |
-          cd _build/prod/rel/pmgp
-          tar -czf ../../../prod/pmgp-0.1.0.tar.gz .
+          cd _build/prod/rel/mimimi
+          tar -czf ../../../prod/mimimi-0.1.0.tar.gz .
           cd -
-          ls -lh _build/prod/pmgp-*.tar.gz
+          ls -lh _build/prod/mimimi-*.tar.gz
 
       - name: Deploy release
         run: ./scripts/deploy.sh
@@ -811,7 +811,7 @@ EOF
 # Create .env.example (safe to commit to Git)
 cat > .env.example << 'EOF'
 # Database Configuration
-DATABASE_URL=postgresql://pmg:your_password_here@localhost/pmg_dev
+DATABASE_URL=postgresql://mimimi:your_password_here@localhost/mimimi_dev
 POOL_SIZE=10
 
 # Phoenix Configuration
@@ -870,14 +870,14 @@ Your first deployment can be done automatically via GitHub Actions (which just t
 ### Step 11.1: Manual First Deployment
 
 ```bash
-# On your server, switch to pmg user
-sudo su - pmg
+# On your server, switch to mimimi user
+sudo su - mimimi
 
-# Navigate to /var/www/pmg
-cd /var/www/pmg
+# Navigate to /var/www/mimimi
+cd /var/www/mimimi
 
 # Clone your repository
-git clone https://github.com/YOUR_USERNAME/pmg.git repo
+git clone https://github.com/YOUR_USERNAME/MiMiMi.git repo
 cd repo
 
 # Install Erlang/Elixir versions from .tool-versions
@@ -886,7 +886,7 @@ mise install
 # Set up environment
 export MIX_ENV=prod
 set -a  # automatically export all variables
-source /var/www/pmg/shared/.env
+source /var/www/mimimi/shared/.env
 set +a  # stop automatically exporting
 
 # Install dependencies
@@ -902,33 +902,33 @@ mix assets.deploy
 mix release
 
 # Create tarball from the release
-cd _build/prod/rel/pmgp
-tar -czf ../../../prod/pmgp-0.1.0.tar.gz .
+cd _build/prod/rel/mimimi
+tar -czf ../../../prod/mimimi-0.1.0.tar.gz .
 cd -
 
 # Create first release directory
-RELEASE_DIR="/var/www/pmg/releases/$(date +%Y%m%d%H%M%S)"
+RELEASE_DIR="/var/www/mimimi/releases/$(date +%Y%m%d%H%M%S)"
 mkdir -p "$RELEASE_DIR"
 
 # Extract release
-tar -xzf _build/prod/pmgp-*.tar.gz -C "$RELEASE_DIR"
+tar -xzf _build/prod/mimimi-*.tar.gz -C "$RELEASE_DIR"
 
 # Link to current
-ln -sfn "$RELEASE_DIR" /var/www/pmg/current
+ln -sfn "$RELEASE_DIR" /var/www/mimimi/current
 
 # Create static files symlink (for nginx)
 STATIC_DIR=$(find "$RELEASE_DIR/lib" -type d -name "priv" | head -n1)
-ln -sfn "$STATIC_DIR/static" /var/www/pmg/shared/static
+ln -sfn "$STATIC_DIR/static" /var/www/mimimi/shared/static
 
 # Run migrations
-cd /var/www/pmg/current
+cd /var/www/mimimi/current
 ./bin/migrate
 
 # Start the application
-sudo systemctl start pmg
+sudo systemctl start mimimi
 
 # Check status
-sudo systemctl status pmg
+sudo systemctl status mimimi
 # Should show: active (running)
 
 # Exit back to admin
@@ -943,7 +943,7 @@ curl http://localhost:4019
 # Should show HTML response
 
 # Check logs
-sudo journalctl -u pmg -n 50
+sudo journalctl -u mimimi -n 50
 # Should show application startup logs
 
 # Check nginx
@@ -997,8 +997,8 @@ sudo certbot renew --dry-run
 ### Step 13.1: Configure Cron Job
 
 ```bash
-# Switch to pmg user
-sudo su - pmg
+# Switch to mimimi user
+sudo su - mimimi
 
 # Edit crontab
 crontab -e
@@ -1010,10 +1010,10 @@ Add these lines at the bottom:
 
 ```cron
 # Daily database backup at 2 AM
-0 2 * * * pg_dump -U pmg pmg_prod | gzip > /var/www/pmg/shared/backups/pmg_$(date +\%Y\%m\%d).sql.gz
+0 2 * * * pg_dump -U mimimi mimimi_prod | gzip > /var/www/mimimi/shared/backups/mimimi_$(date +\%Y\%m\%d).sql.gz
 
 # Clean backups older than 30 days at 3 AM
-0 3 * * * find /var/www/pmg/shared/backups -name "pmg_*.sql.gz" -mtime +30 -delete
+0 3 * * * find /var/www/mimimi/shared/backups -name "mimimi_*.sql.gz" -mtime +30 -delete
 ```
 
 Save and exit (Ctrl+X, then Y, then Enter).
@@ -1098,7 +1098,7 @@ sudo systemctl restart sshd
 
 ```bash
 # On your LOCAL machine
-cd /path/to/your/pmg/project
+cd /path/to/your/MiMiMi/project
 
 # Make a small change (e.g., edit README)
 echo "Testing deployment" >> README.md
@@ -1121,7 +1121,7 @@ git push origin main
 
 ```bash
 # On your server
-sudo journalctl -u pmg -n 50
+sudo journalctl -u mimimi -n 50
 
 # Check if application is running
 curl http://localhost:4019
@@ -1140,29 +1140,29 @@ curl http://localhost:4019
 
 ```bash
 # Real-time logs
-sudo journalctl -u pmg -f
+sudo journalctl -u mimimi -f
 
 # Last 100 lines
-sudo journalctl -u pmg -n 100
+sudo journalctl -u mimimi -n 100
 
 # Today's logs
-sudo journalctl -u pmg --since today
+sudo journalctl -u mimimi --since today
 ```
 
 ### Manual Deployment Commands
 
 ```bash
 # Restart application
-sudo systemctl restart pmg
+sudo systemctl restart mimimi
 
 # Stop application
-sudo systemctl stop pmg
+sudo systemctl stop mimimi
 
 # Start application
-sudo systemctl start pmg
+sudo systemctl start mimimi
 
 # Check status
-sudo systemctl status pmg
+sudo systemctl status mimimi
 ```
 
 ### Manual Rollback
@@ -1170,31 +1170,31 @@ sudo systemctl status pmg
 If a deployment fails:
 
 ```bash
-# Switch to pmg user
-sudo su - pmg
+# Switch to mimimi user
+sudo su - mimimi
 
 # List releases
-cd /var/www/pmg/releases
+cd /var/www/mimimi/releases
 ls -lt
 
 # Link to previous release (replace TIMESTAMP with actual timestamp)
-ln -sfn /var/www/pmg/releases/TIMESTAMP /var/www/pmg/current
+ln -sfn /var/www/mimimi/releases/TIMESTAMP /var/www/mimimi/current
 
-# Exit pmg user
+# Exit mimimi user
 exit
 
 # Restart application
-sudo systemctl restart pmg
+sudo systemctl restart mimimi
 ```
 
 ### Restore Database Backup
 
 ```bash
 # List backups
-sudo ls -lh /var/www/pmg/shared/backups/
+sudo ls -lh /var/www/mimimi/shared/backups/
 
 # Restore a backup (replace DATE with actual date)
-sudo -u pmg gunzip -c /var/www/pmg/shared/backups/pmg_DATE.sql.gz | sudo -u pmg psql pmg_prod
+sudo -u mimimi gunzip -c /var/www/mimimi/shared/backups/mimimi_DATE.sql.gz | sudo -u mimimi psql mimimi_prod
 ```
 
 ---
@@ -1205,20 +1205,20 @@ sudo -u pmg gunzip -c /var/www/pmg/shared/backups/pmg_DATE.sql.gz | sudo -u pmg 
 
 ```bash
 # Check detailed logs
-sudo journalctl -u pmg -n 200 --no-pager
+sudo journalctl -u mimimi -n 200 --no-pager
 
 # Check if port is in use
 sudo netstat -tlnp | grep 4019
 
 # Verify environment variables
-sudo -u pmg cat /var/www/pmg/shared/.env
+sudo -u mimimi cat /var/www/mimimi/shared/.env
 
 # Test release manually
-sudo su - pmg
-cd /var/www/pmg/current
-source /var/www/pmg/shared/.env
-./bin/pmgp start
-./bin/pmgp pid
+sudo su - mimimi
+cd /var/www/mimimi/current
+source /var/www/mimimi/shared/.env
+./bin/mimimi start
+./bin/mimimi pid
 exit
 ```
 
@@ -1226,7 +1226,7 @@ exit
 
 ```bash
 # Test PostgreSQL connection
-sudo -u pmg psql -U pmg -d pmg_prod -h localhost
+sudo -u mimimi psql -U mimimi -d mimimi_prod -h localhost
 
 # Check PostgreSQL is running
 sudo systemctl status postgresql
@@ -1239,7 +1239,7 @@ sudo tail -f /var/log/postgresql/postgresql-*-main.log
 
 ```bash
 # Check runner status
-sudo su - pmg
+sudo su - mimimi
 cd ~/actions-runner
 sudo ./svc.sh status
 
@@ -1253,14 +1253,14 @@ exit
 
 ```bash
 # Ensure correct ownership
-sudo chown -R pmg:pmg /var/www/pmg
+sudo chown -R mimimi:mimimi /var/www/mimimi
 
 # Check .env file permissions
-ls -la /var/www/pmg/shared/.env
-# Should show: -rw------- 1 pmg pmg
+ls -la /var/www/mimimi/shared/.env
+# Should show: -rw------- 1 mimimi mimimi
 
 # Check sudoers configuration
-sudo cat /etc/sudoers.d/pmg
+sudo cat /etc/sudoers.d/mimimi
 ```
 
 ---
@@ -1298,4 +1298,4 @@ sudo cat /etc/sudoers.d/pmg
 - 📱 **Mobile-friendly** - users don't notice updates
 - 🎯 **Automatic fallback** to cold deploy when needed
 
-**Need help?** Check the Troubleshooting section above or review the logs with `sudo journalctl -u pmg -f`
+**Need help?** Check the Troubleshooting section above or review the logs with `sudo journalctl -u mimimi -f`
