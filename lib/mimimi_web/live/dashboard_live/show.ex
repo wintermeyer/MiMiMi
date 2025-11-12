@@ -160,6 +160,8 @@ defmodule MimimiWeb.DashboardLive.Show do
     url
     |> EQRCode.encode()
     |> EQRCode.svg(width: 192)
+    |> String.replace(~r/<svg ([^>]*) width="[^"]*"/, "<svg \\1")
+    |> String.replace(~r/<svg ([^>]*) height="[^"]*"/, "<svg \\1")
   end
 
   @impl true
@@ -193,8 +195,8 @@ defmodule MimimiWeb.DashboardLive.Show do
             Einladungslink zeigen
           </h2>
 
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
-            <div class="flex flex-col gap-3">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
+            <div class="flex flex-col gap-3 lg:col-span-2">
               <div class="relative group">
                 <div class="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl opacity-0 group-hover:opacity-10 transition-opacity duration-300">
                 </div>
@@ -224,7 +226,7 @@ defmodule MimimiWeb.DashboardLive.Show do
               </button>
             </div>
 
-            <div class="flex justify-center p-4 bg-white/90 dark:bg-gray-900/90 rounded-2xl backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50">
+            <div class="flex items-center justify-center p-6 bg-white dark:bg-gray-900 rounded-2xl border-2 border-gray-200 dark:border-gray-700 shadow-lg">
               <div class="w-48 h-48 flex items-center justify-center">
                 {Phoenix.HTML.raw(@qr_code_svg)}
               </div>
