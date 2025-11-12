@@ -17,6 +17,7 @@ A mobile-first multiplayer word-guessing game built with Phoenix LiveView for Ge
 - Choose grid size (2x1, 2x2, 3x3, or 4x4)
 - Generate unique invitation link and QR code
 - 15-minute lobby timeout with countdown
+- Secure host authentication with cryptographic tokens
 - Modern glassmorphism design with smooth animations
 
 ### Player Experience
@@ -54,7 +55,8 @@ See `CLAUDE.md` for complete design system documentation.
 3. **Context Layer** - Complete Games context with all CRUD operations and PubSub
 4. **Seed Data** - 65+ German words across 8 categories in einfache Sprache
 5. **Session Management** - Auto-create users based on session (no login required)
-6. **UI/UX Design** - Glassmorphism design system applied across all LiveViews
+6. **Security** - Host authentication with cryptographic tokens (prevents waiting room hijacking)
+7. **UI/UX Design** - Glassmorphism design system applied across all LiveViews
 
 ### 🚧 In Progress
 
@@ -82,6 +84,15 @@ Visit `http://localhost:4000`
 - Guess with 1 keyword shown: 5 points
 - Guess with 3 keywords shown: 3 points
 - Wrong answer: 0 points
+
+## 🔒 Security
+
+### Host Authentication
+- Each game generates a unique cryptographic host token (32-byte secure random)
+- Host token stored in signed session cookie (expires after 24 hours)
+- Waiting room access requires valid host token matching the game's stored token
+- Prevents unauthorized users from hijacking the waiting room and starting games
+- Even with the same URL, attackers cannot impersonate the game host without the valid token
 
 ## 📦 Key Dependencies
 

@@ -12,6 +12,7 @@ defmodule Mimimi.Games.Game do
     field :clues_interval, :integer, default: 10
     field :grid_size, :integer, default: 9
     field :invitation_id, :binary_id
+    field :host_token, :string
     field :state, :string, default: "waiting_for_players"
     field :started_at, :utc_datetime
 
@@ -30,11 +31,12 @@ defmodule Mimimi.Games.Game do
       :clues_interval,
       :grid_size,
       :invitation_id,
+      :host_token,
       :state,
       :started_at,
       :host_user_id
     ])
-    |> validate_required([:rounds_count, :clues_interval, :grid_size, :host_user_id])
+    |> validate_required([:rounds_count, :clues_interval, :grid_size, :host_user_id, :host_token])
     |> validate_inclusion(:rounds_count, 1..20)
     |> validate_inclusion(:clues_interval, [3, 6, 9, 12, 15, 20, 30, 45, 60])
     |> validate_inclusion(:grid_size, [2, 4, 9, 16])
@@ -45,6 +47,7 @@ defmodule Mimimi.Games.Game do
       "lobby_timeout"
     ])
     |> unique_constraint(:invitation_id)
+    |> unique_constraint(:host_token)
     |> foreign_key_constraint(:host_user_id)
   end
 end

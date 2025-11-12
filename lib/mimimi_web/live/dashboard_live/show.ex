@@ -3,9 +3,35 @@ defmodule MimimiWeb.DashboardLive.Show do
   alias Mimimi.Games
 
   @impl true
-  def mount(%{"id" => game_id}, _session, socket) do
+  def mount(%{"id" => game_id}, session, socket) do
     game = Games.get_game_with_players(game_id)
 
+    # Check if user is the host
+    is_host = game.host_user_id == socket.assigns.current_user.id
+
+    # Validate host token from cookie if user claims to be host
+    if is_host do
+      host_token_key = "host_token_#{game_id}"
+      stored_token = Map.get(session, host_token_key)
+
+      # Verify the token matches
+      if stored_token != game.host_token do
+        # Token mismatch or missing - redirect to home
+        {:ok,
+         socket
+         |> put_flash(:error, "Unberechtigter Zugriff. Du bist nicht der Spielleiter.")
+         |> push_navigate(to: ~p"/")}
+      else
+        # Token is valid, proceed with mounting
+        mount_dashboard(game_id, game, socket)
+      end
+    else
+      # Not the host, just mount normally (for player/observer view)
+      mount_dashboard(game_id, game, socket)
+    end
+  end
+
+  defp mount_dashboard(game_id, game, socket) do
     if connected?(socket) do
       Games.subscribe_to_game(game_id)
       Games.subscribe_to_active_games()
@@ -171,39 +197,41 @@ defmodule MimimiWeb.DashboardLive.Show do
             Einladungslink zeigen
           </h2>
 
-          <div class="flex flex-col gap-3 mb-6">
-            <div class="relative group">
-              <div class="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl opacity-0 group-hover:opacity-10 transition-opacity duration-300">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
+            <div class="flex flex-col gap-3">
+              <div class="relative group">
+                <div class="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl opacity-0 group-hover:opacity-10 transition-opacity duration-300">
+                </div>
+                <input
+                  type="text"
+                  readonly
+                  value={@invitation_url}
+                  class="relative w-full px-4 py-3 text-sm bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white outline-none"
+                  id="invitation-link"
+                />
               </div>
-              <input
-                type="text"
-                readonly
-                value={@invitation_url}
-                class="relative w-full px-4 py-3 text-sm bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white outline-none"
-                id="invitation-link"
-              />
+              <button
+                type="button"
+                phx-click={
+                  JS.dispatch("phx:copy", to: "#invitation-link")
+                  |> JS.transition("opacity-0", to: "#copy-text")
+                  |> JS.transition("opacity-100", to: "#copied-text", time: 0)
+                  |> JS.transition("opacity-100", to: "#copy-text", time: 2000)
+                  |> JS.transition("opacity-0", to: "#copied-text", time: 2000)
+                }
+                class="relative w-full py-3 bg-gradient-to-r from-purple-600 via-purple-500 to-pink-500 hover:from-purple-700 hover:via-purple-600 hover:to-pink-600 text-white rounded-2xl shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 font-semibold overflow-hidden group"
+              >
+                <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700">
+                </div>
+                <span id="copy-text" class="relative">Link kopieren</span>
+                <span id="copied-text" class="relative hidden opacity-0">Kopiert! ✓</span>
+              </button>
             </div>
-            <button
-              type="button"
-              phx-click={
-                JS.dispatch("phx:copy", to: "#invitation-link")
-                |> JS.transition("opacity-0", to: "#copy-text")
-                |> JS.transition("opacity-100", to: "#copied-text", time: 0)
-                |> JS.transition("opacity-100", to: "#copy-text", time: 2000)
-                |> JS.transition("opacity-0", to: "#copied-text", time: 2000)
-              }
-              class="relative w-full py-3 bg-gradient-to-r from-purple-600 via-purple-500 to-pink-500 hover:from-purple-700 hover:via-purple-600 hover:to-pink-600 text-white rounded-2xl shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 font-semibold overflow-hidden group"
-            >
-              <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700">
-              </div>
-              <span id="copy-text" class="relative">Link kopieren</span>
-              <span id="copied-text" class="relative hidden opacity-0">Kopiert! ✓</span>
-            </button>
-          </div>
 
-          <div class="flex justify-center p-4 bg-white/90 dark:bg-gray-900/90 rounded-2xl backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50">
-            <div class="w-48 h-48 flex items-center justify-center">
-              {Phoenix.HTML.raw(@qr_code_svg)}
+            <div class="flex justify-center p-4 bg-white/90 dark:bg-gray-900/90 rounded-2xl backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50">
+              <div class="w-48 h-48 flex items-center justify-center">
+                {Phoenix.HTML.raw(@qr_code_svg)}
+              </div>
             </div>
           </div>
         </div>

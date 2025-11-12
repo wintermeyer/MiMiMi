@@ -39,7 +39,8 @@ defmodule MimimiWeb.HomeLive.Index do
            grid_size: grid_size
          }) do
       {:ok, game} ->
-        {:noreply, push_navigate(socket, to: ~p"/dashboard/#{game.id}")}
+        # Redirect to controller route that sets the host token cookie
+        {:noreply, redirect(socket, to: ~p"/game/#{game.id}/set-host-token")}
 
       {:error, _changeset} ->
         {:noreply,

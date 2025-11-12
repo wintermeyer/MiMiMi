@@ -18,6 +18,9 @@ defmodule MimimiWeb.Router do
   scope "/", MimimiWeb do
     pipe_through :browser
 
+    # Controller route for setting host token cookie
+    get "/game/:game_id/set-host-token", GameController, :set_host_token
+
     live_session :default, on_mount: MimimiWeb.ActiveGamesHook do
       live "/", HomeLive.Index, :index
       live "/choose-avatar/:invitation_id", AvatarLive.Choose, :choose

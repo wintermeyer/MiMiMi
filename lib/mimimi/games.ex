@@ -10,15 +10,17 @@ defmodule Mimimi.Games do
   # Game functions
 
   @doc """
-  Creates a game with a unique invitation_id.
+  Creates a game with a unique invitation_id and host_token.
   """
   def create_game(host_user_id, attrs \\ %{}) do
     invitation_id = Ecto.UUID.generate()
+    host_token = generate_host_token()
 
     attrs =
       attrs
       |> Map.put(:host_user_id, host_user_id)
       |> Map.put(:invitation_id, invitation_id)
+      |> Map.put(:host_token, host_token)
 
     %Game{}
     |> Game.changeset(attrs)
@@ -27,6 +29,11 @@ defmodule Mimimi.Games do
       {:ok, _game} -> broadcast_game_count_changed()
       _ -> :ok
     end)
+  end
+
+  # Generates a cryptographically secure host token
+  defp generate_host_token do
+    :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
   end
 
   @doc """
