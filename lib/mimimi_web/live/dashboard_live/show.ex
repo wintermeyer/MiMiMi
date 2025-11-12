@@ -143,106 +143,131 @@ defmodule MimimiWeb.DashboardLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen px-4 py-8">
-      <%= case @mode do %>
-        <% :waiting_for_players -> %>
-          {render_lobby(assigns)}
-        <% :host_dashboard -> %>
-          {render_host_dashboard(assigns)}
-        <% :game_over -> %>
-          {render_game_over(assigns)}
-      <% end %>
-    </div>
+    <%= case @mode do %>
+      <% :waiting_for_players -> %>
+        {render_lobby(assigns)}
+      <% :host_dashboard -> %>
+        {render_host_dashboard(assigns)}
+      <% :game_over -> %>
+        {render_game_over(assigns)}
+    <% end %>
     """
   end
 
   defp render_lobby(assigns) do
     ~H"""
-    <div class="max-w-4xl mx-auto flex flex-col min-h-screen py-4">
-      <h1 class="text-3xl font-bold text-center mb-6 text-gray-900 dark:text-white">
-        Warteraum
-      </h1>
+    <div class="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900">
+      <div class="w-full max-w-4xl">
+        <%!-- Header --%>
+        <div class="text-center mb-8">
+          <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
+            Warteraum
+          </h1>
+        </div>
 
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 sm:p-6 mb-4">
-        <h2 class="text-lg font-bold mb-3 text-gray-900 dark:text-white">Einladungslink zeigen</h2>
+        <%!-- Invitation Card --%>
+        <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-6 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 mb-6">
+          <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+            Einladungslink zeigen
+          </h2>
 
-        <div class="flex flex-col gap-2 mb-4">
-          <input
-            type="text"
-            readonly
-            value={@invitation_url}
-            class="w-full px-3 py-2 text-sm border rounded bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
-            id="invitation-link"
-          />
+          <div class="flex flex-col gap-3 mb-6">
+            <div class="relative group">
+              <div class="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl opacity-0 group-hover:opacity-10 transition-opacity duration-300">
+              </div>
+              <input
+                type="text"
+                readonly
+                value={@invitation_url}
+                class="relative w-full px-4 py-3 text-sm bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white outline-none"
+                id="invitation-link"
+              />
+            </div>
+            <button
+              type="button"
+              phx-click={
+                JS.dispatch("phx:copy", to: "#invitation-link")
+                |> JS.transition("opacity-0", to: "#copy-text")
+                |> JS.transition("opacity-100", to: "#copied-text", time: 0)
+                |> JS.transition("opacity-100", to: "#copy-text", time: 2000)
+                |> JS.transition("opacity-0", to: "#copied-text", time: 2000)
+              }
+              class="relative w-full py-3 bg-gradient-to-r from-purple-600 via-purple-500 to-pink-500 hover:from-purple-700 hover:via-purple-600 hover:to-pink-600 text-white rounded-2xl shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 font-semibold overflow-hidden group"
+            >
+              <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700">
+              </div>
+              <span id="copy-text" class="relative">Link kopieren</span>
+              <span id="copied-text" class="relative hidden opacity-0">Kopiert! ✓</span>
+            </button>
+          </div>
+
+          <div class="flex justify-center p-4 bg-white/90 dark:bg-gray-900/90 rounded-2xl backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50">
+            <div class="w-48 h-48 flex items-center justify-center">
+              {Phoenix.HTML.raw(@qr_code_svg)}
+            </div>
+          </div>
+        </div>
+
+        <%!-- Start Game Button --%>
+        <div class="mb-6">
           <button
             type="button"
-            phx-click={
-              JS.dispatch("phx:copy", to: "#invitation-link")
-              |> JS.transition("opacity-0", to: "#copy-text")
-              |> JS.transition("opacity-100", to: "#copied-text", time: 0)
-              |> JS.transition("opacity-100", to: "#copy-text", time: 2000)
-              |> JS.transition("opacity-0", to: "#copied-text", time: 2000)
-            }
-            class="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 active:scale-95 active:bg-purple-800 text-white rounded font-medium transition-all duration-150 ease-in-out"
+            phx-click="start_game"
+            disabled={length(@players) == 0}
+            class={[
+              "relative w-full text-xl font-semibold py-5 rounded-2xl shadow-xl transition-all duration-200 overflow-hidden group",
+              if(length(@players) > 0,
+                do:
+                  "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white shadow-green-500/30 hover:shadow-2xl hover:shadow-green-500/40 hover:scale-[1.02] active:scale-[0.98]",
+                else:
+                  "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+              )
+            ]}
           >
-            <span id="copy-text">Link kopieren</span>
-            <span id="copied-text" class="hidden opacity-0">Kopiert! ✓</span>
+            <%= if length(@players) > 0 do %>
+              <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700">
+              </div>
+            <% end %>
+            <span class="relative">Jetzt spielen!</span>
           </button>
         </div>
 
-        <div class="flex justify-center p-3 bg-white dark:bg-gray-900 rounded">
-          <div class="w-48 h-48 flex items-center justify-center">
-            {Phoenix.HTML.raw(@qr_code_svg)}
-          </div>
-        </div>
-      </div>
+        <%!-- Players Card --%>
+        <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-6 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
+          <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+            Mitspieler ({length(@players)})
+            <%= if MapSet.size(@pending_players) > 0 do %>
+              <span class="text-sm font-normal text-purple-600 dark:text-purple-400">
+                + {MapSet.size(@pending_players)} wählt Avatar...
+              </span>
+            <% end %>
+          </h2>
 
-      <div class="mb-4">
-        <button
-          type="button"
-          phx-click="start_game"
-          disabled={length(@players) == 0}
-          class={[
-            "w-full text-xl font-bold py-4 rounded-lg transition-colors",
-            if(length(@players) > 0,
-              do: "bg-green-600 hover:bg-green-700 text-white",
-              else: "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
-            )
-          ]}
-        >
-          Jetzt spielen!
-        </button>
-      </div>
-
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 sm:p-6">
-        <h2 class="text-lg font-bold mb-3 text-gray-900 dark:text-white">
-          Mitspieler ({length(@players)})
-          <%= if MapSet.size(@pending_players) > 0 do %>
-            <span class="text-sm font-normal text-purple-600 dark:text-purple-400">
-              + {MapSet.size(@pending_players)} wählt Avatar...
-            </span>
+          <%= if @players == [] && MapSet.size(@pending_players) == 0 do %>
+            <div class="text-center py-8">
+              <div class="text-6xl mb-4 opacity-50">👥</div>
+              <p class="text-gray-600 dark:text-gray-400">Warte auf Spieler...</p>
+            </div>
+          <% else %>
+            <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+              <%= for player <- @players do %>
+                <div class="relative flex flex-col items-center justify-center p-3 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl aspect-square transition-all duration-300 hover:border-purple-300 dark:hover:border-purple-600 hover:shadow-md overflow-hidden group">
+                  <div class="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
+                  </div>
+                  <span class="relative text-6xl sm:text-7xl">{player.avatar}</span>
+                </div>
+              <% end %>
+              <%= for _user_id <- @pending_players do %>
+                <div class="relative flex flex-col items-center justify-center p-3 border-2 border-dashed border-purple-400 dark:border-purple-500 rounded-2xl bg-purple-50/50 dark:bg-purple-900/20 backdrop-blur-sm animate-pulse aspect-square">
+                  <span class="text-6xl sm:text-7xl mb-1">❓</span>
+                  <span class="text-xs text-center text-purple-600 dark:text-purple-400 font-medium leading-tight">
+                    Wählt...
+                  </span>
+                </div>
+              <% end %>
+            </div>
           <% end %>
-        </h2>
-
-        <%= if @players == [] && MapSet.size(@pending_players) == 0 do %>
-          <p class="text-gray-600 dark:text-gray-400">Warte auf Spieler...</p>
-        <% else %>
-          <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-            <%= for player <- @players do %>
-              <div class="flex flex-col items-center justify-center p-2 border-2 border-gray-200 dark:border-gray-600 rounded-lg aspect-square">
-                <span class="text-7xl sm:text-8xl">{player.avatar}</span>
-              </div>
-            <% end %>
-            <%= for _user_id <- @pending_players do %>
-              <div class="flex flex-col items-center justify-center p-2 border-2 border-dashed border-purple-400 dark:border-purple-500 rounded-lg bg-purple-50 dark:bg-purple-900/20 animate-pulse aspect-square">
-                <span class="text-7xl sm:text-8xl mb-1">❓</span>
-                <span class="text-xs text-center text-purple-600 dark:text-purple-400 font-medium leading-tight">
-                  Wählt...
-                </span>
-              </div>
-            <% end %>
-          </div>
-        <% end %>
+        </div>
       </div>
     </div>
     """
@@ -250,18 +275,28 @@ defmodule MimimiWeb.DashboardLive.Show do
 
   defp render_host_dashboard(assigns) do
     ~H"""
-    <div class="max-w-4xl mx-auto">
-      <h1 class="text-3xl font-bold text-center mb-8 dark:text-white">
-        Spielleiter Dashboard
-      </h1>
+    <div class="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900">
+      <div class="w-full max-w-4xl">
+        <div class="text-center mb-10">
+          <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 mb-4 shadow-lg">
+            <span class="text-4xl">🎯</span>
+          </div>
+          <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
+            Spielleiter Dashboard
+          </h1>
+        </div>
 
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-        <p class="text-center text-lg dark:text-white">
-          Das Spiel läuft...
-        </p>
-        <p class="text-center text-sm text-gray-600 dark:text-gray-400 mt-2">
-          (Volle Spielfunktionalität wird noch implementiert)
-        </p>
+        <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
+          <div class="text-center py-8">
+            <div class="text-6xl mb-4">🎮</div>
+            <p class="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+              Das Spiel läuft...
+            </p>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              (Volle Spielfunktionalität wird noch implementiert)
+            </p>
+          </div>
+        </div>
       </div>
     </div>
     """
@@ -269,32 +304,51 @@ defmodule MimimiWeb.DashboardLive.Show do
 
   defp render_game_over(assigns) do
     ~H"""
-    <div class="max-w-4xl mx-auto">
-      <h1 class="text-3xl font-bold text-center mb-8 dark:text-white">
-        Spiel fertig!
-      </h1>
+    <div class="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900">
+      <div class="w-full max-w-4xl">
+        <div class="text-center mb-10">
+          <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 mb-4 shadow-lg">
+            <span class="text-4xl">🏆</span>
+          </div>
+          <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
+            Spiel fertig!
+          </h1>
+          <p class="text-gray-500 dark:text-gray-400">
+            Wer hat gewonnen?
+          </p>
+        </div>
 
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-        <h2 class="text-2xl font-bold mb-6 text-center dark:text-white">Wer hat gewonnen?</h2>
+        <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
+          <div class="space-y-3">
+            <%= for {player, index} <- Enum.with_index(Enum.sort_by(@players, & &1.points, :desc)) do %>
+              <div class={[
+                "relative flex items-center justify-between p-5 rounded-2xl transition-all duration-300 overflow-hidden group",
+                case index do
+                  0 ->
+                    "bg-gradient-to-r from-yellow-400 to-orange-400 text-white shadow-lg shadow-yellow-500/50"
 
-        <div class="space-y-3">
-          <%= for {player, index} <- Enum.with_index(Enum.sort_by(@players, & &1.points, :desc)) do %>
-            <div class={[
-              "flex items-center justify-between p-4 rounded-lg",
-              case index do
-                0 -> "bg-yellow-100 dark:bg-yellow-900 border-2 border-yellow-400"
-                1 -> "bg-gray-100 dark:bg-gray-700 border-2 border-gray-400"
-                2 -> "bg-orange-100 dark:bg-orange-900 border-2 border-orange-400"
-                _ -> "bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600"
-              end
-            ]}>
-              <div class="flex items-center gap-4">
-                <span class="text-2xl font-bold dark:text-white">{index + 1}.</span>
-                <span class="text-3xl">{player.avatar}</span>
+                  1 ->
+                    "bg-gradient-to-r from-gray-300 to-gray-400 dark:from-gray-600 dark:to-gray-700 text-white shadow-lg shadow-gray-500/50"
+
+                  2 ->
+                    "bg-gradient-to-r from-orange-400 to-red-400 text-white shadow-lg shadow-orange-500/50"
+
+                  _ ->
+                    "bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white"
+                end
+              ]}>
+                <div class="relative flex items-center gap-4">
+                  <span class="text-2xl font-bold">{index + 1}.</span>
+                  <span class="text-4xl">{player.avatar}</span>
+                </div>
+                <span class="relative text-xl font-bold">{player.points} Punkte</span>
+                <%= if index < 3 do %>
+                  <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700">
+                  </div>
+                <% end %>
               </div>
-              <span class="text-xl font-bold dark:text-white">{player.points} Punkte</span>
-            </div>
-          <% end %>
+            <% end %>
+          </div>
         </div>
       </div>
     </div>

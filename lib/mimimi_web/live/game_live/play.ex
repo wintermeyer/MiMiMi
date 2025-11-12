@@ -99,21 +99,33 @@ defmodule MimimiWeb.GameLive.Play do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen flex items-center justify-center px-4 py-8">
-      <div class="w-full max-w-2xl">
+    <div class="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900">
+      <div class="w-full max-w-3xl">
         <%= if @game.state == "waiting_for_players" do %>
-          <div class="text-center">
-            <h1 class="text-3xl font-bold mb-8 dark:text-white">
+          <%!-- Waiting for game start --%>
+          <div class="text-center mb-10">
+            <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 mb-4 shadow-lg animate-pulse">
+              <span class="text-4xl">⏳</span>
+            </div>
+            <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
               Warte auf Spielstart...
             </h1>
+          </div>
 
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
-              <div class="animate-pulse mb-6">
-                <div class="text-6xl mb-4">{@player.avatar}</div>
-                <p class="text-lg font-medium dark:text-white">Du bist dabei!</p>
+          <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
+            <%!-- Player badge --%>
+            <div class="text-center mb-8 pb-8 border-b border-gray-200 dark:border-gray-700">
+              <div class="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 mb-4 shadow-lg animate-pulse">
+                <span class="text-7xl">{@player.avatar}</span>
               </div>
+              <p class="text-xl font-semibold text-gray-900 dark:text-white">
+                Du bist dabei!
+              </p>
+            </div>
 
-              <h2 class="text-xl font-bold mb-4 dark:text-white">
+            <%!-- Other players --%>
+            <div>
+              <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white text-center">
                 Wer spielt mit?
                 <%= if MapSet.size(@pending_players) > 0 do %>
                   <span class="text-sm font-normal text-purple-600 dark:text-purple-400">
@@ -121,17 +133,19 @@ defmodule MimimiWeb.GameLive.Play do
                   </span>
                 <% end %>
               </h2>
-              <div class="grid grid-cols-3 sm:grid-cols-4 gap-3">
+              <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
                 <%= for player <- @game.players do %>
-                  <div class="flex flex-col items-center p-2">
-                    <span class="text-7xl sm:text-8xl">{player.avatar}</span>
+                  <div class="relative flex flex-col items-center justify-center p-3 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl aspect-square transition-all duration-300 hover:border-purple-300 dark:hover:border-purple-600 hover:shadow-md overflow-hidden group">
+                    <div class="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
+                    </div>
+                    <span class="relative text-6xl">{player.avatar}</span>
                   </div>
                 <% end %>
                 <%= for _user_id <- @pending_players do %>
-                  <div class="flex flex-col items-center p-2 border-2 border-dashed border-purple-400 dark:border-purple-500 rounded-lg bg-purple-50 dark:bg-purple-900/20 animate-pulse">
-                    <span class="text-7xl sm:text-8xl">❓</span>
-                    <span class="text-xs text-center text-purple-600 dark:text-purple-400 font-medium">
-                      Wählt Avatar...
+                  <div class="relative flex flex-col items-center justify-center p-3 border-2 border-dashed border-purple-400 dark:border-purple-500 rounded-2xl bg-purple-50/50 dark:bg-purple-900/20 backdrop-blur-sm animate-pulse aspect-square">
+                    <span class="text-6xl mb-1">❓</span>
+                    <span class="text-xs text-center text-purple-600 dark:text-purple-400 font-medium leading-tight">
+                      Wählt...
                     </span>
                   </div>
                 <% end %>
@@ -139,16 +153,23 @@ defmodule MimimiWeb.GameLive.Play do
             </div>
           </div>
         <% else %>
-          <div class="text-center">
-            <h1 class="text-3xl font-bold mb-8 dark:text-white">
+          <%!-- Game running --%>
+          <div class="text-center mb-10">
+            <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-orange-500 to-red-500 mb-4 shadow-lg">
+              <span class="text-4xl">🎯</span>
+            </div>
+            <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
               Welches Wort ist richtig?
             </h1>
+          </div>
 
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
-              <p class="text-lg dark:text-white">
+          <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
+            <div class="text-center py-8">
+              <div class="text-6xl mb-4">🎮</div>
+              <p class="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                 Das Spiel läuft...
               </p>
-              <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">
+              <p class="text-sm text-gray-600 dark:text-gray-400">
                 (Volle Spielfunktionalität wird noch implementiert)
               </p>
             </div>

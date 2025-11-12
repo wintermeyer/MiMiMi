@@ -17,6 +17,7 @@ A mobile-first multiplayer word-guessing game built with Phoenix LiveView for Ge
 - Choose grid size (2x1, 2x2, 3x3, or 4x4)
 - Generate unique invitation link and QR code
 - 15-minute lobby timeout with countdown
+- Modern glassmorphism design with smooth animations
 
 ### Player Experience
 - Join via invitation link or QR code scan
@@ -32,6 +33,18 @@ A mobile-first multiplayer word-guessing game built with Phoenix LiveView for Ge
 - Synchronized game state across all devices
 - Active games counter in footer
 
+## 🎨 Design System
+
+The application uses a modern **glassmorphism design language** with:
+- Frosted glass card effects with backdrop blur
+- Soft gradient backgrounds (indigo → white)
+- Smooth transitions and micro-interactions
+- Context-specific gradient icon badges
+- Color-matched shadows on interactive elements
+- Full dark mode support
+
+See `CLAUDE.md` for complete design system documentation.
+
 ## 🏗️ Implementation Status
 
 ### ✅ Completed
@@ -41,6 +54,7 @@ A mobile-first multiplayer word-guessing game built with Phoenix LiveView for Ge
 3. **Context Layer** - Complete Games context with all CRUD operations and PubSub
 4. **Seed Data** - 65+ German words across 8 categories in einfache Sprache
 5. **Session Management** - Auto-create users based on session (no login required)
+6. **UI/UX Design** - Glassmorphism design system applied across all LiveViews
 
 ### 🚧 In Progress
 

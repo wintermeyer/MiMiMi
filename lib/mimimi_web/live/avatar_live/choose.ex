@@ -122,40 +122,60 @@ defmodule MimimiWeb.AvatarLive.Choose do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen flex items-center justify-center px-4 py-8">
-      <div class="w-full max-w-2xl">
-        <h1 class="text-3xl font-bold text-center mb-8 dark:text-white">
-          Wähle dein Tier
-        </h1>
+    <div class="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900">
+      <div class="w-full max-w-3xl">
+        <%!-- Header --%>
+        <div class="text-center mb-10">
+          <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 mb-4 shadow-lg">
+            <span class="text-4xl">🐾</span>
+          </div>
+          <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
+            Wähle dein Tier
+          </h1>
+          <p class="text-gray-500 dark:text-gray-400 text-sm">
+            Klicke auf ein verfügbares Tier
+          </p>
+        </div>
 
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-          <%= for {avatar, available} <- @avatars do %>
-            <button
-              type="button"
-              phx-click={if available, do: "select_avatar", else: nil}
-              phx-value-avatar={avatar}
-              disabled={!available}
-              class={[
-                "relative aspect-square flex flex-col items-center justify-center rounded-lg border-2 transition-all text-4xl sm:text-5xl md:text-6xl",
-                if(available,
-                  do:
-                    "border-gray-300 dark:border-gray-600 hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900 cursor-pointer",
-                  else:
-                    "border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 cursor-not-allowed opacity-50"
-                )
-              ]}
-            >
-              <span>{avatar}</span>
-              <%= if available do %>
-                <span class="text-sm font-medium text-green-600 dark:text-green-400 mt-2">Frei</span>
-              <% else %>
-                <span class="text-sm font-medium text-red-600 dark:text-red-400 mt-2">Besetzt</span>
-                <div class="absolute inset-0 flex items-center justify-center">
-                  <.icon name="hero-x-mark" class="w-16 h-16 text-red-500" />
-                </div>
-              <% end %>
-            </button>
-          <% end %>
+        <%!-- Avatar Grid Card --%>
+        <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+            <%= for {avatar, available} <- @avatars do %>
+              <button
+                type="button"
+                phx-click={if available, do: "select_avatar", else: nil}
+                phx-value-avatar={avatar}
+                disabled={!available}
+                class={[
+                  "relative aspect-square flex flex-col items-center justify-center rounded-2xl transition-all duration-300 text-5xl sm:text-6xl overflow-hidden group",
+                  if(available,
+                    do:
+                      "bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 hover:border-green-400 dark:hover:border-green-500 hover:shadow-lg hover:scale-105 cursor-pointer",
+                    else:
+                      "bg-gray-100 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 cursor-not-allowed opacity-50"
+                  )
+                ]}
+              >
+                <%= if available do %>
+                  <div class="absolute inset-0 bg-gradient-to-br from-green-400 to-emerald-400 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
+                  </div>
+                <% end %>
+                <span class="relative">{avatar}</span>
+                <%= if available do %>
+                  <span class="relative text-xs font-semibold text-green-600 dark:text-green-400 mt-2">
+                    Frei
+                  </span>
+                <% else %>
+                  <span class="relative text-xs font-semibold text-red-600 dark:text-red-400 mt-2">
+                    Besetzt
+                  </span>
+                  <div class="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+                    <.icon name="hero-x-mark" class="w-12 h-12 text-red-500" />
+                  </div>
+                <% end %>
+              </button>
+            <% end %>
+          </div>
         </div>
       </div>
     </div>
