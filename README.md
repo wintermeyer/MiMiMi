@@ -1,30 +1,87 @@
-# Mimimi
+# MiMiMi - Multiplayer Word Guessing Game for Kids
 
-To start your Phoenix server:
+A mobile-first multiplayer word-guessing game built with Phoenix LiveView for German elementary school students (Grundschüler). Players see a grid of words/images and must guess the correct word based on progressively revealed keywords (clues).
 
-* Run `mix setup` to install and setup dependencies
-* Start Phoenix endpoint with `mix phx.server` or inside IEx with `iex -S mix phx.server`
+## 🎮 Game Overview
 
-Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
+**Target Audience:** German elementary school students
+**Language:** German (einfache Sprache - simple language for children)
+**Platform:** Web-based, mobile-first design
+**Technology:** Phoenix LiveView with real-time multiplayer features
 
-Ready to run in production? See [DEPLOYMENT.md](DEPLOYMENT.md) for our complete self-hosted deployment guide with hot code upgrade support.
+## ✨ Features
 
-## Deployment Features
+### Game Setup (Host/Teacher)
+- Configure number of rounds (1-20, default: 3)
+- Set clue reveal interval (3s to 60s)
+- Choose grid size (2x1, 2x2, 3x3, or 4x4)
+- Generate unique invitation link and QR code
+- 15-minute lobby timeout with countdown
 
-This application includes a hybrid deployment system with:
+### Player Experience
+- Join via invitation link or QR code scan
+- Select unique animal avatar (🐻🐘🦉🐸🦊🐰🦛🐱🦁🐼)
+- Real-time gameplay with progressive keyword reveals
+- Immediate feedback (correct/wrong)
+- Live leaderboard with points
 
-- **Hot Code Upgrades**: Zero-downtime deployments (<1 second) for most changes
-- **Automatic Fallback**: Intelligently switches to cold deploy when needed (migrations, supervision changes)
-- **GitHub Actions Integration**: Automated deployment on push to `main`
-- **Self-Hosted**: Complete guide for deploying to Debian Linux
-- **Filesystem-Based**: No S3 or external storage required
+### Multiplayer Features
+- Real-time updates via Phoenix PubSub
+- Host dashboard showing all player activity
+- Automatic round progression
+- Synchronized game state across all devices
+- Active games counter in footer
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for complete setup instructions.
+## 🏗️ Implementation Status
 
-## Learn more
+### ✅ Completed
+
+1. **Database Layer** - All 7 tables migrated with proper indexes and foreign keys
+2. **Ecto Schemas** - User, Game, Player, Word, Keyword, Round, Pick
+3. **Context Layer** - Complete Games context with all CRUD operations and PubSub
+4. **Seed Data** - 65+ German words across 8 categories in einfache Sprache
+5. **Session Management** - Auto-create users based on session (no login required)
+
+### 🚧 In Progress
+
+LiveView modules, routing, UI components, and game flow logic are next in the implementation queue.
+
+## 🚀 Getting Started
+
+```bash
+# Install dependencies
+mix deps.get
+
+# Create and migrate database
+mix ecto.setup
+
+# Start Phoenix server
+mix phx.server
+```
+
+Visit `http://localhost:4000`
+
+## 📊 Scoring System
+
+**Formula:** `points = total_keywords - keywords_shown + 1`
+
+- Guess with 1 keyword shown: 5 points
+- Guess with 3 keywords shown: 3 points
+- Wrong answer: 0 points
+
+## 📦 Key Dependencies
+
+- phoenix (~> 1.8.1), phoenix_live_view (~> 1.1.0)
+- ecto_sql (~> 3.13), postgrex
+- eqrcode (~> 0.1) for QR codes
+- tailwind (~> 0.3) for styling
+
+## 📄 Deployment
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for production deployment with hot code upgrades.
+
+## Learn More About Phoenix
 
 * Official website: https://www.phoenixframework.org/
 * Guides: https://hexdocs.pm/phoenix/overview.html
 * Docs: https://hexdocs.pm/phoenix
-* Forum: https://elixirforum.com/c/phoenix-forum
-* Source: https://github.com/phoenixframework/phoenix

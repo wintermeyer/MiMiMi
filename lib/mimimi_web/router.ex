@@ -8,6 +8,7 @@ defmodule MimimiWeb.Router do
     plug :put_root_layout, html: {MimimiWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug MimimiWeb.Plugs.UserSession
   end
 
   pipeline :api do
@@ -17,7 +18,12 @@ defmodule MimimiWeb.Router do
   scope "/", MimimiWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live_session :default, on_mount: MimimiWeb.ActiveGamesHook do
+      live "/", HomeLive.Index, :index
+      live "/choose-avatar/:invitation_id", AvatarLive.Choose, :choose
+      live "/dashboard/:id", DashboardLive.Show, :show
+      live "/games/:id/current", GameLive.Play, :play
+    end
   end
 
   # Health check endpoint for deployment verification
