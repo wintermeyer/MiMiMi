@@ -62,11 +62,12 @@ defmodule MimimiWeb.DashboardLive.ShowTest do
         |> Plug.Test.init_test_session(%{"session_id" => "attacker_session_id"})
 
       # Attacker tries with host's game URL but no host token
-      # Should see the waiting room but not as host (cannot start game)
-      {:ok, _view, html} = live(conn, ~p"/dashboard/#{game.id}")
+      # Should be completely denied access
+      result = live(conn, ~p"/dashboard/#{game.id}")
 
-      # Should see waiting room but not host controls
-      assert html =~ "Warteraum"
+      # Should get a redirect with error flash
+      assert {:error, {:live_redirect, %{to: "/", flash: %{"error" => error_message}}}} = result
+      assert error_message =~ "Unberechtigter Zugriff"
     end
 
     test "different user cannot hijack even if they steal the URL and add fake cookie", %{
@@ -87,10 +88,11 @@ defmodule MimimiWeb.DashboardLive.ShowTest do
         })
 
       # Should be redirected because token doesn't match
-      {:ok, _view, html} = live(conn, ~p"/dashboard/#{game.id}")
+      result = live(conn, ~p"/dashboard/#{game.id}")
 
-      # Should see error about unauthorized access
-      assert html =~ "Unberechtigter Zugriff" or html =~ "Warteraum"
+      # Should get a redirect with error flash
+      assert {:error, {:live_redirect, %{to: "/", flash: %{"error" => error_message}}}} = result
+      assert error_message =~ "Unberechtigter Zugriff"
     end
   end
 

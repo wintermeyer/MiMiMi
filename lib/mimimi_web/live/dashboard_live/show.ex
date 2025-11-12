@@ -6,32 +6,28 @@ defmodule MimimiWeb.DashboardLive.Show do
   def mount(%{"id" => game_id}, session, socket) do
     game = Games.get_game_with_players(game_id)
 
-    # Check if user is the host
-    is_host = game.host_user_id == socket.assigns.current_user.id
+    # Only allow access if the user has the valid host token
+    # This prevents hijacking even if someone copies the URL to another device
+    host_token_key = "host_token_#{game_id}"
+    stored_token = Map.get(session, host_token_key)
 
-    # Validate host token from cookie if user claims to be host
-    if is_host do
-      host_token_key = "host_token_#{game_id}"
-      stored_token = Map.get(session, host_token_key)
-
-      # Verify the token matches
-      if stored_token != game.host_token do
-        # Token mismatch or missing - redirect to home
-        {:ok,
-         socket
-         |> put_flash(:error, "Unberechtigter Zugriff. Du bist nicht der Spielleiter.")
-         |> push_navigate(to: ~p"/")}
-      else
-        # Token is valid, proceed with mounting
-        mount_dashboard(game_id, game, socket)
-      end
+    # Verify the token matches - REQUIRED for waiting room access
+    if stored_token == game.host_token do
+      # Valid host token - proceed with mounting
+      mount_dashboard(game_id, game, socket, :host)
     else
-      # Not the host, just mount normally (for player/observer view)
-      mount_dashboard(game_id, game, socket)
+      # No valid token - deny access completely
+      {:ok,
+       socket
+       |> put_flash(
+         :error,
+         "Unberechtigter Zugriff. Nur der Spielleiter kann den Warteraum öffnen."
+       )
+       |> push_navigate(to: ~p"/")}
     end
   end
 
-  defp mount_dashboard(game_id, game, socket) do
+  defp mount_dashboard(game_id, game, socket, _role) do
     if connected?(socket) do
       Games.subscribe_to_game(game_id)
       Games.subscribe_to_active_games()
