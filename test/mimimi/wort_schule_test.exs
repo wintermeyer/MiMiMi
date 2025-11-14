@@ -1,6 +1,8 @@
 defmodule Mimimi.WortSchuleTest do
   use ExUnit.Case, async: true
 
+  @moduletag :external_db
+
   alias Mimimi.WortSchuleRepo
   alias Mimimi.WortSchule
 
