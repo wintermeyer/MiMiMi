@@ -10,6 +10,16 @@ config :mimimi, Mimimi.Repo,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
 
+# Configure wort.schule database (read-only)
+config :mimimi, Mimimi.WortSchuleRepo,
+  username: "postgres",
+  password: "postgres",
+  hostname: "localhost",
+  database: "wortschule_development",
+  stacktrace: true,
+  show_sensitive_data_on_connection_error: true,
+  pool_size: 10
+
 # For development, we disable any cache and enable
 # debugging and code reloading.
 #

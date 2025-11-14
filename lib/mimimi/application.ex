@@ -13,6 +13,7 @@ defmodule Mimimi.Application do
     children = [
       MimimiWeb.Telemetry,
       Mimimi.Repo,
+      Mimimi.WortSchuleRepo,
       {DNSCluster, query: Application.get_env(:mimimi, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Mimimi.PubSub},
       # Start a worker by calling: Mimimi.Worker.start_link(arg)

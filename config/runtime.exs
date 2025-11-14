@@ -38,6 +38,18 @@ if config_env() == :prod do
     # pool_count: 4,
     socket_options: maybe_ipv6
 
+  # Configure wort.schule database (read-only)
+  config :mimimi, Mimimi.WortSchuleRepo,
+    database: "wortschule_production",
+    username: "wortschule",
+    password: System.get_env("WORTSCHULE_DATABASE_PASSWORD"),
+    hostname: System.get_env("WORTSCHULE_DATABASE_HOST") || "localhost",
+    port: String.to_integer(System.get_env("WORTSCHULE_DATABASE_PORT") || "5432"),
+    pool_size: String.to_integer(System.get_env("WORTSCHULE_POOL_SIZE") || "10"),
+    queue_target: 50,
+    queue_interval: 1000,
+    socket_options: maybe_ipv6
+
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
   # want to use a different value for prod and you most likely don't want

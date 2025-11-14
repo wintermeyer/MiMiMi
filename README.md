@@ -94,19 +94,44 @@ Visit `http://localhost:4000`
 - Prevents unauthorized users from hijacking the waiting room and starting games
 - Even with the same URL, attackers cannot impersonate the game host without the valid token
 
-## 📦 Key Dependencies
+## 🔗 WortSchule Integration
 
-- phoenix (~> 1.8.1), phoenix_live_view (~> 1.1.0)
-- ecto_sql (~> 3.13), postgrex
-- eqrcode (~> 0.1) for QR codes
-- tailwind (~> 0.3) for styling
+This application integrates with the [wort.schule](https://wort.schule) database for accessing German word data, keywords, and images.
+
+### Configuration
+
+The app uses a dedicated read-only repository (`Mimimi.WortSchuleRepo`) for accessing the external wort.schule database:
+
+**Development:**
+- Database: `wortschule_development`
+- Same PostgreSQL credentials as main app
+
+**Production:**
+- Database: `wortschule_production`
+- Username: `wortschule`
+- Password: Set via `WORTSCHULE_DATABASE_PASSWORD` environment variable
+- Host: `localhost` (configurable via `WORTSCHULE_DATABASE_HOST`)
+
+### Usage
+
+```elixir
+# Get a complete word with keywords and image URL
+{:ok, word} = Mimimi.WortSchule.get_complete_word(123)
+# => %{id: 123, name: "Affe", keywords: [...], image_url: "https://..."}
+
+# Search words
+words = Mimimi.WortSchule.search_words("Tier")
+
+# List words with filters
+words = Mimimi.WortSchule.list_words(type: "Noun", limit: 10)
+
+# Get image URL
+url = Mimimi.WortSchule.get_image_url(word_id)
+```
+
+See `WortSchuleIntegration.md` for complete integration documentation.
 
 ## 📄 Deployment
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for production deployment with hot code upgrades.
 
-## Learn More About Phoenix
-
-* Official website: https://www.phoenixframework.org/
-* Guides: https://hexdocs.pm/phoenix/overview.html
-* Docs: https://hexdocs.pm/phoenix
