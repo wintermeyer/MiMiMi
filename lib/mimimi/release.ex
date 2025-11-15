@@ -20,6 +20,7 @@ defmodule Mimimi.Release do
 
   defp repos do
     Application.fetch_env!(@app, :ecto_repos)
+    |> Enum.reject(&(&1 == Mimimi.WortSchuleRepo))
   end
 
   defp load_app do
