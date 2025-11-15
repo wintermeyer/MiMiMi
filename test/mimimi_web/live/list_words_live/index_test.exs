@@ -4,6 +4,7 @@ defmodule MimimiWeb.ListWordsLive.IndexTest do
   import Phoenix.LiveViewTest
 
   describe "list words page" do
+    @tag :external_db
     test "renders list words page with filter", %{conn: conn} do
       {:ok, view, html} = live(conn, ~p"/list_words")
 
@@ -14,6 +15,7 @@ defmodule MimimiWeb.ListWordsLive.IndexTest do
       assert has_element?(view, "#keyword-filter")
     end
 
+    @tag :external_db
     test "filter updates when changed", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/list_words")
 
@@ -26,6 +28,7 @@ defmodule MimimiWeb.ListWordsLive.IndexTest do
       assert render(view) =~ "Mindestanzahl Schlüsselwörter: 2"
     end
 
+    @tag :external_db
     test "displays loading state initially", %{conn: conn} do
       {:ok, _view, html} = live(conn, ~p"/list_words")
 

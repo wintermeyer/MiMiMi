@@ -122,22 +122,26 @@ defmodule Mimimi.WortSchule do
       [123, 789]
   """
   def get_word_ids_with_keywords_and_images(opts \\ []) do
-    min_keywords = Keyword.get(opts, :min_keywords, 1)
+    try do
+      min_keywords = Keyword.get(opts, :min_keywords, 1)
 
-    from(w in Word,
-      join: att in "active_storage_attachments",
-      on: att.record_id == w.id and att.record_type == "Word" and att.name == "image",
-      join: k in "keywords",
-      on: k.word_id == w.id,
-      join: kw in Word,
-      on: kw.id == k.keyword_id,
-      group_by: [w.id, w.name],
-      having: count(k.keyword_id, :distinct) >= ^min_keywords,
-      order_by: w.name,
-      select: {w.id, w.name}
-    )
-    |> Repo.all()
-    |> Enum.map(fn {id, _name} -> id end)
+      from(w in Word,
+        join: att in "active_storage_attachments",
+        on: att.record_id == w.id and att.record_type == "Word" and att.name == "image",
+        join: k in "keywords",
+        on: k.word_id == w.id,
+        join: kw in Word,
+        on: kw.id == k.keyword_id,
+        group_by: [w.id, w.name],
+        having: count(k.keyword_id, :distinct) >= ^min_keywords,
+        order_by: w.name,
+        select: {w.id, w.name}
+      )
+      |> Repo.all()
+      |> Enum.map(fn {id, _name} -> id end)
+    rescue
+      _error -> []
+    end
   end
 
   @doc """
@@ -150,22 +154,26 @@ defmodule Mimimi.WortSchule do
       15
   """
   def get_max_keywords_count do
-    result =
-      from(w in Word,
-        join: att in "active_storage_attachments",
-        on: att.record_id == w.id and att.record_type == "Word" and att.name == "image",
-        join: k in "keywords",
-        on: k.word_id == w.id,
-        join: kw in Word,
-        on: kw.id == k.keyword_id,
-        group_by: w.id,
-        select: count(k.keyword_id, :distinct)
-      )
-      |> Repo.all()
+    try do
+      result =
+        from(w in Word,
+          join: att in "active_storage_attachments",
+          on: att.record_id == w.id and att.record_type == "Word" and att.name == "image",
+          join: k in "keywords",
+          on: k.word_id == w.id,
+          join: kw in Word,
+          on: kw.id == k.keyword_id,
+          group_by: w.id,
+          select: count(k.keyword_id, :distinct)
+        )
+        |> Repo.all()
 
-    case result do
-      [] -> 0
-      counts -> Enum.max(counts)
+      case result do
+        [] -> 0
+        counts -> Enum.max(counts)
+      end
+    rescue
+      _error -> 1
     end
   end
 
