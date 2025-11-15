@@ -28,6 +28,19 @@ if config_env() == :prod do
       For example: ecto://USER:PASS@HOST/DATABASE
       """
 
+  # Parse DATABASE_URL to extract password for WortSchule database
+  database_password =
+    case URI.parse(database_url) do
+      %URI{userinfo: userinfo} when is_binary(userinfo) ->
+        case String.split(userinfo, ":") do
+          [_user, pass] -> pass
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
+
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
   config :mimimi, Mimimi.Repo,
@@ -41,8 +54,8 @@ if config_env() == :prod do
   # Configure wort.schule database (read-only)
   config :mimimi, Mimimi.WortSchuleRepo,
     database: "wortschule_production",
-    username: "wortschule",
-    password: System.get_env("WORTSCHULE_DATABASE_PASSWORD"),
+    username: "mimimi",
+    password: database_password,
     hostname: System.get_env("WORTSCHULE_DATABASE_HOST") || "localhost",
     port: String.to_integer(System.get_env("WORTSCHULE_DATABASE_PORT") || "5432"),
     pool_size: String.to_integer(System.get_env("WORTSCHULE_POOL_SIZE") || "10"),
