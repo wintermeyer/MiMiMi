@@ -50,5 +50,80 @@ defmodule Mimimi.WortSchuleTest do
     test "returns error tuple for non-existent word" do
       assert {:error, :not_found} = WortSchule.get_complete_word(999_999_999)
     end
+
+    test "returns proxied image URLs" do
+      # Get a word that should have an image
+      word_ids = WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 1)
+
+      if length(word_ids) > 0 do
+        word_id = Enum.at(word_ids, 0)
+        {:ok, word} = WortSchule.get_complete_word(word_id)
+
+        # If the word has an image, verify it uses the proxy path
+        if word.image_url do
+          assert String.starts_with?(word.image_url, "/proxy/image/"),
+                 "Image URL should be proxied, got: #{word.image_url}"
+        end
+      end
+    end
+  end
+
+  describe "get_word_ids_with_keywords_and_images/1" do
+    test "filters words by minimum number of keywords" do
+      # Get all words with at least 1 keyword
+      all_word_ids = WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 1)
+
+      # Get words with at least 3 keywords
+      filtered_word_ids = WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 3)
+
+      # The filtered list should be a subset of all words
+      assert is_list(all_word_ids)
+      assert is_list(filtered_word_ids)
+      assert length(filtered_word_ids) <= length(all_word_ids)
+
+      # Verify each word in the filtered list actually has at least 3 keywords
+      Enum.each(filtered_word_ids, fn word_id ->
+        {:ok, word} = WortSchule.get_complete_word(word_id)
+        keyword_count = length(word.keywords)
+
+        assert keyword_count >= 3,
+               "Word '#{word.name}' (ID: #{word_id}) has only #{keyword_count} keywords, but should have at least 3"
+      end)
+    end
+  end
+
+  describe "get_max_keywords_count/0" do
+    test "returns the maximum number of keywords for any word with an image" do
+      max_count = WortSchule.get_max_keywords_count()
+
+      # Should return a non-negative integer
+      assert is_integer(max_count)
+      assert max_count >= 0
+
+      # If we have words with images, max should be at least 1
+      word_ids = WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 1)
+
+      if length(word_ids) > 0 do
+        assert max_count >= 1
+      end
+    end
+
+    test "max count is accurate by verifying against actual word data" do
+      max_count = WortSchule.get_max_keywords_count()
+
+      # Get a sample of words with images
+      word_ids = WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 1)
+
+      if length(word_ids) > 0 do
+        # Check that no word has more keywords than the max
+        Enum.each(Enum.take(word_ids, 10), fn word_id ->
+          {:ok, word} = WortSchule.get_complete_word(word_id)
+          keyword_count = length(word.keywords)
+
+          assert keyword_count <= max_count,
+                 "Word '#{word.name}' has #{keyword_count} keywords, but max is #{max_count}"
+        end)
+      end
+    end
   end
 end

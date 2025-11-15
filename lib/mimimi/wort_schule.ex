@@ -88,6 +88,88 @@ defmodule Mimimi.WortSchule do
   end
 
   @doc """
+  Get all words that have at least one keyword and an image.
+  Returns formatted word data with keywords and image URL.
+  """
+  def get_words_with_keywords_and_images do
+    from(w in Word,
+      join: att in "active_storage_attachments",
+      on: att.record_id == w.id and att.record_type == "Word" and att.name == "image",
+      join: k in "keywords",
+      on: k.word_id == w.id,
+      distinct: true,
+      order_by: w.name,
+      preload: [keywords: ^from(kw in Word, order_by: kw.name)]
+    )
+    |> Repo.all()
+    |> Enum.map(&format_word/1)
+  end
+
+  @doc """
+  Get IDs of all words that have at least one keyword and an image.
+  This is a lightweight query that only fetches IDs for async processing.
+
+  ## Options
+
+    * `:min_keywords` - Minimum number of keywords required (default: 1)
+
+  ## Examples
+
+      iex> WortSchule.get_word_ids_with_keywords_and_images()
+      [123, 456, 789]
+
+      iex> WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 2)
+      [123, 789]
+  """
+  def get_word_ids_with_keywords_and_images(opts \\ []) do
+    min_keywords = Keyword.get(opts, :min_keywords, 1)
+
+    from(w in Word,
+      join: att in "active_storage_attachments",
+      on: att.record_id == w.id and att.record_type == "Word" and att.name == "image",
+      join: k in "keywords",
+      on: k.word_id == w.id,
+      join: kw in Word,
+      on: kw.id == k.keyword_id,
+      group_by: [w.id, w.name],
+      having: count(k.keyword_id, :distinct) >= ^min_keywords,
+      order_by: w.name,
+      select: {w.id, w.name}
+    )
+    |> Repo.all()
+    |> Enum.map(fn {id, _name} -> id end)
+  end
+
+  @doc """
+  Get the maximum number of keywords for any word that has an image.
+  Returns 0 if no words with images exist.
+
+  ## Examples
+
+      iex> WortSchule.get_max_keywords_count()
+      15
+  """
+  def get_max_keywords_count do
+    result =
+      from(w in Word,
+        join: att in "active_storage_attachments",
+        on: att.record_id == w.id and att.record_type == "Word" and att.name == "image",
+        join: k in "keywords",
+        on: k.word_id == w.id,
+        join: kw in Word,
+        on: kw.id == k.keyword_id,
+        group_by: w.id,
+        select: count(k.keyword_id, :distinct)
+      )
+      |> Repo.all()
+
+    case result do
+      [] -> 0
+      counts -> Enum.max(counts)
+    end
+  end
+
+  @doc """
   Check if a word has an image.
   """
   def word_has_image?(word_id) do

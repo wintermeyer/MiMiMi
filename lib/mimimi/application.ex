@@ -16,6 +16,8 @@ defmodule Mimimi.Application do
       Mimimi.WortSchuleRepo,
       {DNSCluster, query: Application.get_env(:mimimi, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Mimimi.PubSub},
+      # WortSchule image URL cache (ETS-based, 24-hour TTL)
+      Mimimi.WortSchule.ImageUrlCache,
       # Start a worker by calling: Mimimi.Worker.start_link(arg)
       # {Mimimi.Worker, arg},
       # Start to serve requests, typically the last entry

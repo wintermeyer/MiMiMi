@@ -25,11 +25,42 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/mimimi"
 import topbar from "../vendor/topbar"
 
+const Hooks = {}
+
+Hooks.WordCard = {
+  mounted() {
+    this.handleImageLoad()
+  },
+  updated() {
+    this.handleImageLoad()
+  },
+  handleImageLoad() {
+    const img = this.el.querySelector('img')
+    if (img) {
+      if (img.complete) {
+        this.showCard()
+      } else {
+        img.addEventListener('load', () => this.showCard(), { once: true })
+        img.addEventListener('error', () => this.showCard(), { once: true })
+      }
+    } else {
+      this.showCard()
+    }
+  },
+  showCard() {
+    this.el.classList.remove('opacity-0')
+    this.el.classList.add('animate-fade-in')
+  },
+  hideCard() {
+    this.el.style.display = 'none'
+  }
+}
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks},
+  hooks: {...colocatedHooks, ...Hooks},
 })
 
 // Show progress bar on live navigation and form submits

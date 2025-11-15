@@ -21,11 +21,15 @@ defmodule MimimiWeb.Router do
     # Controller route for setting host token cookie
     get "/game/:game_id/set-host-token", GameController, :set_host_token
 
+    # Image proxy route to avoid CORS issues when loading images from wort.schule
+    get "/proxy/image/*path", ImageProxyController, :show
+
     live_session :default, on_mount: MimimiWeb.ActiveGamesHook do
       live "/", HomeLive.Index, :index
       live "/choose-avatar/:invitation_id", AvatarLive.Choose, :choose
       live "/dashboard/:id", DashboardLive.Show, :show
       live "/games/:id/current", GameLive.Play, :play
+      live "/list_words", ListWordsLive.Index, :index
     end
   end
 

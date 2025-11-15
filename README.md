@@ -34,6 +34,15 @@ A mobile-first multiplayer word-guessing game built with Phoenix LiveView for Ge
 - Synchronized game state across all devices
 - Active games counter in footer
 
+### Word List Page
+- Browse all words from WortSchule database that have keywords and images
+- Visit `/list_words` to see the complete word collection with visuals
+- Each word displays its image and all associated keywords
+- Filter words by minimum number of keywords using the interactive slider
+- Slider range dynamically adjusts to the maximum keyword count in the database
+- Filtering correctly excludes orphaned keywords (keywords pointing to non-existent words)
+- Images are loaded through a proxy to avoid CORS issues
+
 ## 🎨 Design System
 
 The application uses a modern **glassmorphism design language** with:
@@ -125,9 +134,39 @@ words = Mimimi.WortSchule.search_words("Tier")
 # List words with filters
 words = Mimimi.WortSchule.list_words(type: "Noun", limit: 10)
 
-# Get image URL
+# Get image URL (cached for 24 hours)
 url = Mimimi.WortSchule.get_image_url(word_id)
 ```
+
+### Image URL Cache
+
+The application uses an in-memory ETS cache for WortSchule image URLs to minimize API calls:
+
+- **Cache Duration**: 24 hours
+- **Storage**: In-memory ETS table (no database overhead)
+- **Auto-cleanup**: Expired entries are removed every 6 hours
+- **Benefits**: Significantly reduces API calls and improves performance
+
+Cache management:
+```elixir
+# View cache statistics
+Mimimi.WortSchule.ImageUrlCache.stats()
+# => %{total: 150, expired: 5, active: 145}
+
+# Clear cache (if needed)
+Mimimi.WortSchule.ImageUrlCache.clear()
+```
+
+### Image Proxy
+
+To avoid CORS issues and improve security, all WortSchule images are proxied through the Phoenix application:
+
+- **Route**: `/proxy/image/*path`
+- **Automatic redirect following**: The proxy automatically follows Rails ActiveStorage redirects
+- **Caching**: Proxied images are cached for 1 year in browsers
+- **CORS-free**: No cross-origin issues since images are served from the same domain
+
+All image URLs returned by `Mimimi.WortSchule.get_image_url/1` and `get_complete_word/1` automatically use the proxy path (e.g., `/proxy/image/rails/active_storage/blobs/...`).
 
 See `WortSchuleIntegration.md` for complete integration documentation.
 
