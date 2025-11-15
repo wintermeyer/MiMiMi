@@ -30,6 +30,7 @@ defmodule MimimiWeb.Router do
       live "/dashboard/:id", DashboardLive.Show, :show
       live "/games/:id/current", GameLive.Play, :play
       live "/list_words", ListWordsLive.Index, :index
+      live "/debug", DebugLive.Index, :index
     end
   end
 

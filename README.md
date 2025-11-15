@@ -43,6 +43,16 @@ A mobile-first multiplayer word-guessing game built with Phoenix LiveView for Ge
 - Filtering correctly excludes orphaned keywords (keywords pointing to non-existent words)
 - Images are loaded through a proxy to avoid CORS issues
 
+### Debug Page
+- System diagnostics at `/debug` (excluded from search engines via robots.txt)
+- Displays Elixir version, Phoenix version, app version, and build timestamp
+- Shows WortSchule database connection status
+- Reports table counts for all WortSchule tables:
+  - Total words, words with images, words with keywords
+  - Words with both keywords and images (usable in game)
+  - Keywords, ActiveStorage attachments and blobs
+- Error handling with detailed error messages for troubleshooting
+
 ## 🎨 Design System
 
 The application uses a modern **glassmorphism design language** with:
