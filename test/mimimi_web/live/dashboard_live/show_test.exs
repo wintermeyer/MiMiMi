@@ -34,7 +34,7 @@ defmodule MimimiWeb.DashboardLive.ShowTest do
       {:ok, _view, html} = live(conn, ~p"/dashboard/#{game.id}")
 
       # Host should see the waiting room controls
-      assert html =~ "Warteraum"
+      assert html =~ "Einladungscode"
       assert html =~ "Jetzt spielen!"
     end
 

@@ -3,8 +3,8 @@ defmodule MimimiWeb.AvatarLive.Choose do
   alias Mimimi.Games
 
   @impl true
-  def mount(%{"invitation_id" => invitation_id}, _session, socket) do
-    case Games.validate_invitation(invitation_id) do
+  def mount(%{"short_code" => short_code}, _session, socket) do
+    case Games.validate_short_code(short_code) do
       {:ok, game} ->
         if connected?(socket) do
           Games.subscribe_to_game(game.id)
@@ -28,6 +28,12 @@ defmodule MimimiWeb.AvatarLive.Choose do
         {:ok,
          socket
          |> put_flash(:error, "Dieser Link geht nicht.")
+         |> push_navigate(to: ~p"/")}
+
+      {:error, :expired} ->
+        {:ok,
+         socket
+         |> put_flash(:error, "Dieser Link ist abgelaufen.")
          |> push_navigate(to: ~p"/")}
 
       {:error, :already_started} ->

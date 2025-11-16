@@ -23,11 +23,12 @@ defmodule MimimiWeb.Router do
 
     live_session :default, on_mount: MimimiWeb.ActiveGamesHook do
       live "/", HomeLive.Index, :index
-      live "/choose-avatar/:invitation_id", AvatarLive.Choose, :choose
       live "/dashboard/:id", DashboardLive.Show, :show
       live "/games/:id/current", GameLive.Play, :play
       live "/list_words", ListWordsLive.Index, :index
       live "/debug", DebugLive.Index, :index
+      # Short code invitation route - must be last to avoid conflicts
+      live "/:short_code", AvatarLive.Choose, :choose
     end
   end
 

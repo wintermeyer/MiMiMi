@@ -15,13 +15,16 @@ A mobile-first multiplayer word-guessing game built with Phoenix LiveView for Ge
 - Configure number of rounds (1-20, default: 3)
 - Set clue reveal interval (3s to 60s)
 - Choose grid size (2x1, 2x2, 3x3, or 4x4)
-- Generate unique invitation link and QR code
+- Generate unique 6-digit invitation code (expires after 15 minutes)
+- Large, prominent display of invitation code in dashboard for easy reading
+- Share code via QR code, link, or direct code entry
 - 15-minute lobby timeout with countdown
 - Secure host authentication with cryptographic tokens
 - Modern glassmorphism design with smooth animations
 
 ### Player Experience
-- Join via invitation link or QR code scan
+- Join via invitation link, QR code scan, or manual 6-digit code entry
+- Manual code entry on home page for easy joining without links
 - Select unique animal avatar (🐻🐘🦉🐸🦊🐰🦛🐱🦁🐼)
 - Real-time gameplay with progressive keyword reveals
 - Immediate feedback (correct/wrong)

@@ -14,7 +14,9 @@ defmodule MimimiWeb.HomeLive.Index do
        :form,
        to_form(%{"rounds_count" => "3", "clues_interval" => "9", "grid_size" => "9"})
      )
-     |> assign(:page_title, "Neues Spiel")}
+     |> assign(:invite_form, to_form(%{"code" => ""}, as: :invite))
+     |> assign(:invite_error, nil)
+     |> assign(:page_title, "MiMiMi")}
   end
 
   @impl true
@@ -25,6 +27,32 @@ defmodule MimimiWeb.HomeLive.Index do
   @impl true
   def handle_event("validate", %{"game" => game_params}, socket) do
     {:noreply, assign(socket, :form, to_form(game_params, as: :game))}
+  end
+
+  @impl true
+  def handle_event("validate_invite", %{"invite" => invite_params}, socket) do
+    # Clean up the code - remove spaces and keep only digits
+    code = String.replace(invite_params["code"] || "", ~r/[^\d]/, "")
+    cleaned_params = %{"code" => code}
+
+    {:noreply,
+     socket
+     |> assign(:invite_form, to_form(cleaned_params, as: :invite))
+     |> assign(:invite_error, nil)}
+  end
+
+  @impl true
+  def handle_event("join_game", %{"invite" => %{"code" => code}}, socket) do
+    cleaned_code = String.replace(code, ~r/[^\d]/, "")
+
+    with :ok <- validate_code_presence(cleaned_code),
+         :ok <- validate_code_length(cleaned_code),
+         {:ok, _game} <- Games.validate_short_code(cleaned_code) do
+      {:noreply, push_navigate(socket, to: ~p"/#{cleaned_code}")}
+    else
+      {:error, error_message} ->
+        {:noreply, assign_invite_error(socket, cleaned_code, error_message)}
+    end
   end
 
   @impl true
@@ -54,16 +82,101 @@ defmodule MimimiWeb.HomeLive.Index do
   def render(assigns) do
     ~H"""
     <div class="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900">
-      <div class="w-full max-w-md">
-        <%!-- Glassmorphism Header --%>
-        <div class="text-center mb-10">
+      <div class="w-full max-w-md space-y-6">
+        <%!-- Main Header --%>
+        <div class="text-center">
+          <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 mb-4 shadow-lg">
+            <span class="text-4xl">🎮</span>
+          </div>
           <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-            Neues Spiel
+            MiMiMi
           </h1>
+          <p class="text-gray-500 dark:text-gray-400 text-sm">
+            Wörter-Ratespiel
+          </p>
         </div>
-
-        <%!-- Glassmorphism Form Card --%>
+        <%!-- JOIN GAME SECTION --%>
         <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
+          <div class="text-center mb-6">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 mb-3 shadow-lg">
+              <span class="text-3xl">🎯</span>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+              Spiel beitreten
+            </h2>
+            <p class="text-gray-600 dark:text-gray-400 text-sm">
+              Gib deinen Einladungscode ein
+            </p>
+          </div>
+
+          <.form
+            for={@invite_form}
+            id="join-game-form"
+            phx-change="validate_invite"
+            phx-submit="join_game"
+            class="space-y-4"
+          >
+            <div class="space-y-2">
+              <div class="relative group">
+                <div class="absolute inset-0 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl opacity-0 group-hover:opacity-10 transition-opacity duration-300">
+                </div>
+                <input
+                  type="text"
+                  name="invite[code]"
+                  value={@invite_form[:code].value || ""}
+                  placeholder="123456"
+                  maxlength="6"
+                  inputmode="numeric"
+                  pattern="[0-9]*"
+                  autocomplete="off"
+                  class="relative w-full text-center text-2xl font-bold tracking-widest px-4 py-4 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-xl focus:border-green-500 dark:focus:border-green-400 focus:ring-4 focus:ring-green-100 dark:focus:ring-green-900/30 transition-all duration-200 dark:text-white outline-none"
+                />
+              </div>
+
+              <%= if @invite_error do %>
+                <div class="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+                  <span class="text-lg">⚠️</span>
+                  <p class="text-sm text-red-600 dark:text-red-400 font-medium">
+                    {@invite_error}
+                  </p>
+                </div>
+              <% end %>
+            </div>
+
+            <button
+              type="submit"
+              class="relative w-full text-lg font-semibold py-4 bg-gradient-to-r from-green-600 via-green-500 to-emerald-500 hover:from-green-700 hover:via-green-600 hover:to-emerald-600 text-white rounded-2xl shadow-xl shadow-green-500/30 hover:shadow-2xl hover:shadow-green-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 overflow-hidden group"
+            >
+              <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700">
+              </div>
+              <span class="relative">Spiel beitreten</span>
+            </button>
+          </.form>
+        </div>
+        <%!-- DIVIDER --%>
+        <div class="relative">
+          <div class="absolute inset-0 flex items-center">
+            <div class="w-full border-t-2 border-gray-200 dark:border-gray-700"></div>
+          </div>
+          <div class="relative flex justify-center">
+            <span class="px-4 text-sm font-semibold text-gray-500 dark:text-gray-400 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900">
+              oder
+            </span>
+          </div>
+        </div>
+        <%!-- CREATE GAME SECTION --%>
+        <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
+          <div class="text-center mb-6">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 mb-3 shadow-lg">
+              <span class="text-3xl">✨</span>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+              Neues Spiel
+            </h2>
+            <p class="text-gray-600 dark:text-gray-400 text-sm">
+              Erstelle ein neues Spiel
+            </p>
+          </div>
           <.form
             for={@form}
             id="game-setup-form"
@@ -273,4 +386,33 @@ defmodule MimimiWeb.HomeLive.Index do
     </div>
     """
   end
+
+  defp validate_code_presence(""), do: {:error, "Bitte gib einen Einladungscode ein"}
+  defp validate_code_presence(_code), do: :ok
+
+  defp validate_code_length(code) do
+    if String.length(code) == 6 do
+      :ok
+    else
+      {:error, "Der Code muss 6 Ziffern haben"}
+    end
+  end
+
+  defp assign_invite_error(socket, code, error_atom) when is_atom(error_atom) do
+    error_message = game_error_message(error_atom)
+    assign_invite_error(socket, code, error_message)
+  end
+
+  defp assign_invite_error(socket, code, error_message) when is_binary(error_message) do
+    socket
+    |> assign(:invite_error, error_message)
+    |> assign(:invite_form, to_form(%{"code" => code}, as: :invite))
+  end
+
+  defp game_error_message(:not_found), do: "Ungültiger Code"
+  defp game_error_message(:expired), do: "Dieser Code ist abgelaufen"
+  defp game_error_message(:already_started), do: "Das Spiel hat bereits begonnen"
+  defp game_error_message(:game_over), do: "Das Spiel ist bereits vorbei"
+  defp game_error_message(:lobby_timeout), do: "Die Lobby-Zeit ist abgelaufen"
+  defp game_error_message(_), do: "Ein Fehler ist aufgetreten"
 end

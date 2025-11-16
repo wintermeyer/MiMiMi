@@ -9,7 +9,8 @@ import Config
 
 config :mimimi,
   ecto_repos: [Mimimi.Repo, Mimimi.WortSchuleRepo],
-  generators: [timestamp_type: :utc_datetime]
+  generators: [timestamp_type: :utc_datetime],
+  invitation_expiration_minutes: 15
 
 # Configures the endpoint
 config :mimimi, MimimiWeb.Endpoint,

@@ -33,7 +33,9 @@ defmodule MimimiWeb.DashboardLive.Show do
       Games.subscribe_to_active_games()
     end
 
-    invitation_url = "#{MimimiWeb.Endpoint.url()}/choose-avatar/#{game.invitation_id}"
+    # Get the short code for the invitation URL
+    short_code = Games.get_short_code_for_game(game_id)
+    invitation_url = "#{MimimiWeb.Endpoint.url()}/#{short_code}"
     qr_code_svg = generate_qr_code(invitation_url)
 
     socket =
@@ -42,6 +44,7 @@ defmodule MimimiWeb.DashboardLive.Show do
       |> assign(:players, game.players)
       |> assign(:mode, determine_mode(game, socket.assigns.current_user))
       |> assign(:lobby_time_remaining, nil)
+      |> assign(:short_code, short_code)
       |> assign(:invitation_url, invitation_url)
       |> assign(:qr_code_svg, qr_code_svg)
       |> assign(:pending_players, MapSet.new())
@@ -182,18 +185,28 @@ defmodule MimimiWeb.DashboardLive.Show do
     ~H"""
     <div class="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900">
       <div class="w-full max-w-4xl">
-        <%!-- Header --%>
-        <div class="text-center mb-8">
-          <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
-            Warteraum
-          </h1>
-        </div>
-
         <%!-- Invitation Card --%>
         <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-6 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 mb-6">
-          <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
-            Einladungslink zeigen
+          <h2 class="text-lg font-semibold mb-6 text-gray-900 dark:text-white text-center">
+            Einladungscode
           </h2>
+
+          <%!-- Large prominent code display --%>
+          <div class="relative mb-6 overflow-hidden rounded-3xl">
+            <div class="absolute inset-0 bg-gradient-to-br from-purple-500 via-pink-500 to-purple-600 opacity-10">
+            </div>
+            <div class="relative backdrop-blur-xl bg-white/90 dark:bg-gray-900/90 border-4 border-purple-500/30 dark:border-purple-400/30 rounded-3xl p-8 text-center">
+              <div class="text-6xl sm:text-8xl md:text-9xl font-black text-transparent bg-clip-text bg-gradient-to-br from-purple-600 via-pink-500 to-purple-600 dark:from-purple-400 dark:via-pink-400 dark:to-purple-400 tracking-wider mb-2 select-all">
+                {@short_code}
+              </div>
+              <p class="text-sm text-gray-600 dark:text-gray-400 font-medium">
+                Gib diesen Code ein auf
+                <span class="font-bold text-purple-600 dark:text-purple-400">
+                  {URI.parse(@invitation_url).host}
+                </span>
+              </p>
+            </div>
+          </div>
 
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
             <div class="flex flex-col gap-3 lg:col-span-2">
