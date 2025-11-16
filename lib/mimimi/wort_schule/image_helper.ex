@@ -12,12 +12,12 @@ defmodule Mimimi.WortSchule.ImageHelper do
   @doc """
   Get image URL for a word by fetching from the wort.schule JSON API.
   Results are cached for 24 hours to minimize API calls.
-  Returns a proxied URL to avoid CORS issues, or nil if no image attached or if the API request fails.
+  Returns the direct image URL from wort.schule, or nil if no image attached or if the API request fails.
 
   ## Examples
 
       iex> ImageHelper.image_url_for_word(123)
-      "/proxy/image/rails/active_storage/blobs/redirect/..."
+      "https://wort.schule/rails/active_storage/disk/..."
 
       iex> ImageHelper.image_url_for_word(999)
       nil
@@ -65,8 +65,8 @@ defmodule Mimimi.WortSchule.ImageHelper do
         slug ->
           case fetch_word_data(slug) do
             {:ok, %{"image_url" => image_url}} when is_binary(image_url) and image_url != "" ->
-              # Return proxied URL instead of direct URL to avoid CORS issues
-              "/proxy/image#{image_url}"
+              # Return the direct URL - no proxy needed anymore
+              image_url
 
             _ ->
               nil

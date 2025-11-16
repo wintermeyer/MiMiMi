@@ -41,7 +41,7 @@ A mobile-first multiplayer word-guessing game built with Phoenix LiveView for Ge
 - Filter words by minimum number of keywords using the interactive slider
 - Slider range dynamically adjusts to the maximum keyword count in the database
 - Filtering correctly excludes orphaned keywords (keywords pointing to non-existent words)
-- Images are loaded through a proxy to avoid CORS issues
+- Images are loaded directly from wort.schule with complete URLs
 
 ### Debug Page
 - System diagnostics at `/debug` (excluded from search engines via robots.txt)
@@ -167,16 +167,9 @@ Mimimi.WortSchule.ImageUrlCache.stats()
 Mimimi.WortSchule.ImageUrlCache.clear()
 ```
 
-### Image Proxy
+### Direct Image URLs
 
-To avoid CORS issues and improve security, all WortSchule images are proxied through the Phoenix application:
-
-- **Route**: `/proxy/image/*path`
-- **Automatic redirect following**: The proxy automatically follows Rails ActiveStorage redirects
-- **Caching**: Proxied images are cached for 1 year in browsers
-- **CORS-free**: No cross-origin issues since images are served from the same domain
-
-All image URLs returned by `Mimimi.WortSchule.get_image_url/1` and `get_complete_word/1` automatically use the proxy path (e.g., `/proxy/image/rails/active_storage/blobs/...`).
+The wort.schule JSON API now provides complete, direct image URLs without redirects. All image URLs returned by `Mimimi.WortSchule.get_image_url/1` and `get_complete_word/1` are direct URLs from wort.schule (e.g., `https://wort.schule/rails/active_storage/disk/...`).
 
 See `WortSchuleIntegration.md` for complete integration documentation.
 

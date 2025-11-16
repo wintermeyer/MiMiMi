@@ -223,7 +223,7 @@ end
 
 ## Image URL Construction
 
-ActiveStorage stores images and serves them through Rails. The simplest approach is to proxy image requests through the Rails application.
+The wort.schule JSON API now provides complete, direct image URLs. Simply fetch the JSON data for a word and use the `image_url` field.
 
 ### Image Helper Module
 
@@ -236,13 +236,32 @@ defmodule YourApp.Wortschule.ImageHelper do
   @rails_base_url System.get_env("WORTSCHULE_RAILS_URL") || "https://wort.schule"
 
   @doc """
-  Get image URL for a word by proxying through Rails.
-  Returns nil if no image attached.
+  Get image URL for a word from the wort.schule JSON API.
+  Returns the direct image URL or nil if no image attached.
   """
   def image_url_for_word(word_id) do
-    case get_image_blob(word_id) do
+    case get_word_slug(word_id) do
       nil -> nil
-      {key, filename} -> "#{@rails_base_url}/rails/active_storage/blobs/redirect/#{key}/#{filename}"
+      slug ->
+        case fetch_word_data(slug) do
+          {:ok, %{"image_url" => image_url}} when is_binary(image_url) and image_url != "" ->
+            image_url
+          _ ->
+            nil
+        end
+    end
+  end
+
+  defp get_word_slug(word_id) do
+    from(w in Word, where: w.id == ^word_id, select: w.slug)
+    |> Repo.one()
+  end
+
+  defp fetch_word_data(slug) do
+    url = "#{@rails_base_url}/#{slug}.json"
+    case Req.get(url) do
+      {:ok, %{status: 200, body: body}} when is_map(body) -> {:ok, body}
+      _ -> {:error, :not_found}
     end
   end
 
@@ -257,17 +276,6 @@ defmodule YourApp.Wortschule.ImageHelper do
     )
     |> Repo.exists?()
   end
-
-  defp get_image_blob(word_id) do
-    from(att in "active_storage_attachments",
-      where: att.record_type == "Word" and
-             att.record_id == ^word_id and
-             att.name == "image",
-      join: blob in "active_storage_blobs", on: blob.id == att.blob_id,
-      select: {blob.key, blob.filename}
-    )
-    |> Repo.one()
-  end
 end
 ```
 
@@ -276,12 +284,14 @@ end
 ```elixir
 # Get image URL for a word
 ImageHelper.image_url_for_word(123)
-# => "https://wort.schule/rails/active_storage/blobs/redirect/abc123def456/word_image.png"
+# => "https://wort.schule/rails/active_storage/disk/eyJfcmFpbHMiOnsiZGF0YSI6eyJr..."
 
 # Check if word has image
 ImageHelper.has_image?(123)
 # => true
 ```
+
+**Note**: The JSON API returns complete, direct image URLs. No redirect handling is needed.
 
 ---
 

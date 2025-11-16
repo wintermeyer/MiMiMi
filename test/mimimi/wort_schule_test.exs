@@ -51,7 +51,7 @@ defmodule Mimimi.WortSchuleTest do
       assert {:error, :not_found} = WortSchule.get_complete_word(999_999_999)
     end
 
-    test "returns proxied image URLs" do
+    test "returns direct image URLs from wort.schule" do
       # Get a word that should have an image
       word_ids = WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 1)
 
@@ -59,10 +59,10 @@ defmodule Mimimi.WortSchuleTest do
         word_id = Enum.at(word_ids, 0)
         {:ok, word} = WortSchule.get_complete_word(word_id)
 
-        # If the word has an image, verify it uses the proxy path
+        # If the word has an image, verify it's a direct URL from wort.schule
         if word.image_url do
-          assert String.starts_with?(word.image_url, "/proxy/image/"),
-                 "Image URL should be proxied, got: #{word.image_url}"
+          assert String.starts_with?(word.image_url, "https://wort.schule/"),
+                 "Image URL should be a direct URL from wort.schule, got: #{word.image_url}"
         end
       end
     end
