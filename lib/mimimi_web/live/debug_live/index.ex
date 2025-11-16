@@ -337,7 +337,7 @@ defmodule MimimiWeb.DebugLive.Index do
           </div>
 
           <%!-- Tables Statistics Card --%>
-          <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
+          <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 mb-6">
             <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
               Database Tables
             </h2>
@@ -385,6 +385,41 @@ defmodule MimimiWeb.DebugLive.Index do
                 icon="💾"
                 gradient="from-pink-500 to-rose-500"
               />
+            </div>
+          </div>
+
+          <%!-- Links Section --%>
+          <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+              Links
+            </h2>
+
+            <div class="space-y-3">
+              <a
+                href="https://spiel.wort.schule/list_words"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="relative group overflow-hidden rounded-2xl block"
+              >
+                <div class="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
+                </div>
+                <div class="relative flex items-center justify-between p-4 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl group-hover:border-purple-400 dark:group-hover:border-purple-500 transition-all duration-200">
+                  <div class="flex items-center gap-3">
+                    <div class="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg">
+                      <span class="text-xl">📚</span>
+                    </div>
+                    <span class="font-semibold text-gray-900 dark:text-white">
+                      WortSchule Wortliste
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm text-gray-500 dark:text-gray-400 font-mono">
+                      spiel.wort.schule
+                    </span>
+                    <span class="text-gray-400 dark:text-gray-500">↗</span>
+                  </div>
+                </div>
+              </a>
             </div>
           </div>
         <% end %>
