@@ -15,6 +15,13 @@ defmodule MimimiWeb.Router do
     plug :accepts, ["json"]
   end
 
+  # Health check endpoint for deployment verification - must be before browser routes
+  scope "/", MimimiWeb do
+    pipe_through :api
+
+    get "/health", HealthController, :index
+  end
+
   scope "/", MimimiWeb do
     pipe_through :browser
 
@@ -30,13 +37,6 @@ defmodule MimimiWeb.Router do
       # Short code invitation route - must be last to avoid conflicts
       live "/:short_code", AvatarLive.Choose, :choose
     end
-  end
-
-  # Health check endpoint for deployment verification
-  scope "/", MimimiWeb do
-    pipe_through :api
-
-    get "/health", HealthController, :index
   end
 
   # Other scopes may use custom stacks.
