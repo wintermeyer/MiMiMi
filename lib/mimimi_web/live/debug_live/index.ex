@@ -2,6 +2,7 @@ defmodule MimimiWeb.DebugLive.Index do
   use MimimiWeb, :live_view
   alias Mimimi.WortSchuleRepo, as: Repo
   alias Mimimi.WortSchule.Word
+  alias Mimimi.WortSchule.ImageUrlCache
   import Ecto.Query
 
   @impl true
@@ -11,11 +12,13 @@ defmodule MimimiWeb.DebugLive.Index do
         socket
         |> assign(:loading, false)
         |> assign(:system_info, get_system_info())
+        |> assign(:cache_stats, ImageUrlCache.stats())
         |> load_database_stats()
       else
         socket
         |> assign(:loading, true)
         |> assign(:system_info, get_system_info())
+        |> assign(:cache_stats, %{total: 0, expired: 0, active: 0})
       end
 
     {:ok, assign(socket, :page_title, "WortSchule Debug")}
@@ -139,6 +142,16 @@ defmodule MimimiWeb.DebugLive.Index do
   end
 
   @impl true
+  def handle_event("clear_cache", _params, socket) do
+    ImageUrlCache.clear()
+
+    {:noreply,
+     socket
+     |> assign(:cache_stats, ImageUrlCache.stats())
+     |> put_flash(:info, "Image URL Cache erfolgreich geleert")}
+  end
+
+  @impl true
   def render(assigns) do
     ~H"""
     <div class="min-h-screen px-4 py-12 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900">
@@ -218,6 +231,71 @@ defmodule MimimiWeb.DebugLive.Index do
               </div>
             </div>
           </div>
+        </div>
+
+        <%!-- Image URL Cache Card --%>
+        <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 mb-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
+              Image URL Cache
+            </h2>
+            <button
+              phx-click="clear_cache"
+              class="relative px-4 py-2 bg-gradient-to-r from-red-600 via-red-500 to-orange-500 hover:from-red-700 hover:via-red-600 hover:to-orange-600 text-white rounded-xl shadow-lg shadow-red-500/30 hover:shadow-xl hover:shadow-red-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 font-semibold overflow-hidden group"
+            >
+              <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700">
+              </div>
+              <span class="relative">Cache leeren</span>
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="flex items-center gap-3 p-4 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl">
+              <div class="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 shadow-lg">
+                <span class="text-xl">📊</span>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">
+                  Total
+                </p>
+                <p class="text-lg font-bold text-gray-900 dark:text-white">
+                  {@cache_stats.total}
+                </p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3 p-4 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl">
+              <div class="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 shadow-lg">
+                <span class="text-xl">✓</span>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">
+                  Aktiv
+                </p>
+                <p class="text-lg font-bold text-gray-900 dark:text-white">
+                  {@cache_stats.active}
+                </p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3 p-4 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl">
+              <div class="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 shadow-lg">
+                <span class="text-xl">⏳</span>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">
+                  Abgelaufen
+                </p>
+                <p class="text-lg font-bold text-gray-900 dark:text-white">
+                  {@cache_stats.expired}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <p class="mt-4 text-sm text-gray-600 dark:text-gray-400">
+            Der Cache speichert Bild-URLs für 24 Stunden, um API-Aufrufe zu minimieren.
+          </p>
         </div>
 
         <%= if @loading do %>
