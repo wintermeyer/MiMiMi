@@ -25,7 +25,7 @@ defmodule MimimiWeb.ListWordsLive.IndexTest do
       |> render_change(%{"min_keywords" => "2"})
 
       # Verify the filter value is displayed
-      assert render(view) =~ "Mindestanzahl Schlüsselwörter: 2"
+      assert render(view) =~ "Mindestanzahl Stichwörter: 2"
     end
 
     @tag :external_db

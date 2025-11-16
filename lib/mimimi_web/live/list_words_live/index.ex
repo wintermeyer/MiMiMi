@@ -9,7 +9,7 @@ defmodule MimimiWeb.ListWordsLive.Index do
 
     socket =
       socket
-      |> assign(:page_title, "Wörterliste - Wörter mit Bildern")
+      |> assign(:page_title, "Wörter mit Bild und Stichwörtern")
       |> assign(:loading, true)
       |> assign(:total_count, 0)
       |> assign(:loaded_count, 0)
@@ -159,7 +159,7 @@ defmodule MimimiWeb.ListWordsLive.Index do
             Wörterliste
           </h1>
           <p class="text-gray-500 dark:text-gray-400 text-sm">
-            Alle Wörter mit Schlüsselwörtern und Bildern
+            Alle Wörter mit Stichwörtern und Bildern
           </p>
         </div>
 
@@ -167,7 +167,7 @@ defmodule MimimiWeb.ListWordsLive.Index do
         <div class="mb-8 max-w-md mx-auto">
           <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-2xl p-6 shadow-xl border border-gray-200/50 dark:border-gray-700/50">
             <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-              Mindestanzahl Schlüsselwörter: {@min_keywords}
+              Mindestanzahl Stichwörter: {@min_keywords}
             </label>
             <form phx-change="filter_change" phx-debounce="300">
               <div class="relative group">
@@ -243,7 +243,7 @@ defmodule MimimiWeb.ListWordsLive.Index do
             <%!-- Keywords --%>
             <div class="space-y-2">
               <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                Schlüsselwörter:
+                Stichwörter:
               </h3>
               <div class="flex flex-wrap gap-2">
                 <span
@@ -262,7 +262,7 @@ defmodule MimimiWeb.ListWordsLive.Index do
           <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-12 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
             <div class="text-6xl mb-4 opacity-50">📭</div>
             <p class="text-xl text-gray-600 dark:text-gray-400">
-              Keine Wörter mit Schlüsselwörtern und Bildern gefunden
+              Keine Wörter mit Stichwörtern und Bildern gefunden
             </p>
           </div>
         </div>
