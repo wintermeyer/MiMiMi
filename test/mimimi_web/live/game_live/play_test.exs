@@ -146,6 +146,7 @@ defmodule MimimiWeb.GameLive.PlayTest do
   end
 
   describe "Game play page - multi-round progression" do
+    @tag :external_db
     test "3-round game plays all 3 rounds with multiple players", %{
       host: host
     } do
@@ -248,6 +249,7 @@ defmodule MimimiWeb.GameLive.PlayTest do
       assert round2_updated.state == "finished"
     end
 
+    @tag :external_db
     test "points accumulate correctly across multiple rounds", %{host: host} do
       # Create a game with 2 rounds
       {:ok, game} =

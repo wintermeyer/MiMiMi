@@ -305,6 +305,7 @@ defmodule Mimimi.GamesTest do
       assert analytics.fastest_correct_time == nil
     end
 
+    @tag :external_db
     test "returns analytics with all players picked", %{
       round: round,
       player1: player1,
@@ -346,6 +347,7 @@ defmodule Mimimi.GamesTest do
       assert analytics.fastest_correct_time == 5
     end
 
+    @tag :external_db
     test "returns analytics with partial picks", %{
       round: round,
       player1: player1,
