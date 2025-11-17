@@ -102,6 +102,7 @@ defmodule MimimiWeb.DashboardLiveTest do
       assert html =~ "Mitspieler (1)"
     end
 
+    @tag :external_db
     test "players receive game_started event and see the round", %{game: game} do
       # Create a player user and add them to the game
       {:ok, player_user} = Accounts.get_or_create_user_by_session("player_session")
