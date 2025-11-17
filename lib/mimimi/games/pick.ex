@@ -11,6 +11,7 @@ defmodule Mimimi.Games.Pick do
     field :time, :integer
     field :keywords_shown, :integer
     field :is_correct, :boolean, default: false
+    field :word_id, :integer
 
     belongs_to :round, Mimimi.Games.Round
     belongs_to :player, Mimimi.Games.Player
@@ -21,8 +22,8 @@ defmodule Mimimi.Games.Pick do
   @doc false
   def changeset(pick, attrs) do
     pick
-    |> cast(attrs, [:time, :keywords_shown, :is_correct, :round_id, :player_id])
-    |> validate_required([:time, :keywords_shown, :round_id, :player_id])
+    |> cast(attrs, [:time, :keywords_shown, :is_correct, :word_id, :round_id, :player_id])
+    |> validate_required([:time, :keywords_shown, :word_id, :round_id, :player_id])
     |> foreign_key_constraint(:round_id)
     |> foreign_key_constraint(:player_id)
     |> unique_constraint([:round_id, :player_id])

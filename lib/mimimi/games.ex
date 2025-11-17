@@ -155,6 +155,9 @@ defmodule Mimimi.Games do
           game.state == "lobby_timeout" ->
             {:error, :lobby_timeout}
 
+          game.state == "host_disconnected" ->
+            {:error, :host_disconnected}
+
           true ->
             {:ok, game}
         end
@@ -298,13 +301,28 @@ defmodule Mimimi.Games do
   end
 
   @doc """
+  Counts games waiting for players (only waiting_for_players state).
+  Excludes games that have timed out (older than 15 minutes).
+  """
+  def count_waiting_games do
+    timeout_seconds = 15 * 60
+    timeout_threshold = DateTime.add(DateTime.utc_now(), -timeout_seconds, :second)
+
+    from(g in Game,
+      where: g.state == "waiting_for_players" and g.inserted_at > ^timeout_threshold
+    )
+    |> Repo.aggregate(:count)
+  end
+
+  @doc """
   Restarts a game with the same settings.
   """
   def restart_game(%Game{} = old_game) do
     create_game(old_game.host_user_id, %{
       rounds_count: old_game.rounds_count,
       clues_interval: old_game.clues_interval,
-      grid_size: old_game.grid_size
+      grid_size: old_game.grid_size,
+      word_types: old_game.word_types
     })
   end
 
@@ -553,6 +571,8 @@ defmodule Mimimi.Games do
 
   @doc """
   Creates a pick for a player in a round.
+  Returns {:ok, pick, all_picked?} where all_picked? indicates if this was the last pick.
+  This check is done atomically within a transaction to prevent race conditions.
   """
   def create_pick(round_id, player_id, attrs) do
     attrs =
@@ -560,9 +580,24 @@ defmodule Mimimi.Games do
       |> Map.put(:round_id, round_id)
       |> Map.put(:player_id, player_id)
 
-    %Pick{}
-    |> Pick.changeset(attrs)
-    |> Repo.insert()
+    Repo.transaction(fn ->
+      # Insert the pick
+      pick =
+        %Pick{}
+        |> Pick.changeset(attrs)
+        |> Repo.insert!()
+
+      # Check if all players have now picked (atomically within this transaction)
+      round = Repo.get!(Round, round_id) |> Repo.preload(:game)
+      game_id = round.game.id
+
+      player_count = from(p in Player, where: p.game_id == ^game_id) |> Repo.aggregate(:count)
+      pick_count = from(p in Pick, where: p.round_id == ^round_id) |> Repo.aggregate(:count)
+
+      all_picked = player_count == pick_count
+
+      {pick, all_picked}
+    end)
   end
 
   @doc """
@@ -580,10 +615,17 @@ defmodule Mimimi.Games do
 
   @doc """
   Calculates points for a pick.
-  Formula: total_keywords - keywords_shown + 1
+  Formula:
+  - 1 keyword = 5 points
+  - 2 keywords = 3 points
+  - 3 keywords = 1 point
   """
-  def calculate_points(keywords_shown, total_keywords \\ 5) do
-    max(1, total_keywords - keywords_shown + 1)
+  def calculate_points(keywords_shown, _total_keywords \\ 5) do
+    case keywords_shown do
+      1 -> 5
+      2 -> 3
+      _ -> 1
+    end
   end
 
   # Word and Keyword functions
@@ -690,5 +732,188 @@ defmodule Mimimi.Games do
   """
   def get_game_server_state(game_id) do
     Mimimi.GameServer.get_state(game_id)
+  end
+
+  # Host Dashboard Analytics
+
+  @doc """
+  Gets detailed round analytics for the host dashboard.
+  Returns information about player picks, timing, and correctness for the current round.
+  """
+  def get_round_analytics(round_id) do
+    alias Mimimi.WortSchule
+
+    round = Repo.get!(Round, round_id) |> Repo.preload([:game, picks: :player])
+
+    players_with_picks =
+      Enum.map(round.picks, fn pick ->
+        # Fetch the word data including image
+        word_data =
+          case WortSchule.get_complete_word(pick.word_id) do
+            {:ok, data} -> %{id: data.id, name: data.name, image_url: data.image_url}
+            {:error, _} -> %{id: pick.word_id, name: "?", image_url: nil}
+          end
+
+        %{
+          player: pick.player,
+          is_correct: pick.is_correct,
+          keywords_shown: pick.keywords_shown,
+          time: pick.time,
+          picked_at: pick.inserted_at,
+          picked_word: word_data
+        }
+      end)
+
+    player_ids_picked = Enum.map(round.picks, & &1.player_id) |> MapSet.new()
+
+    all_players = list_players_for_game(round.game.id)
+
+    players_not_picked =
+      all_players
+      |> Enum.reject(&MapSet.member?(player_ids_picked, &1.id))
+
+    %{
+      total_players: length(all_players),
+      picked_count: length(players_with_picks),
+      not_picked_count: length(players_not_picked),
+      players_picked: players_with_picks,
+      players_not_picked: players_not_picked,
+      correct_count: Enum.count(players_with_picks, & &1.is_correct),
+      wrong_count: Enum.count(players_with_picks, &(not &1.is_correct)),
+      average_time: calculate_average_time(players_with_picks),
+      fastest_correct_time: fastest_correct_pick_time(players_with_picks)
+    }
+  end
+
+  defp calculate_average_time([]), do: nil
+
+  defp calculate_average_time(picks) do
+    total_time = Enum.reduce(picks, 0, fn pick, acc -> acc + pick.time end)
+    div(total_time, length(picks))
+  end
+
+  defp fastest_correct_pick_time(picks) do
+    picks
+    |> Enum.filter(& &1.is_correct)
+    |> Enum.map(& &1.time)
+    |> Enum.min(fn -> nil end)
+  end
+
+  @doc """
+  Gets game-wide performance statistics for teacher insights.
+  """
+  def get_game_performance_stats(game_id) do
+    game = Repo.get!(Game, game_id) |> Repo.preload([:players, rounds: :picks])
+
+    completed_rounds = Enum.filter(game.rounds, &(&1.state == "finished"))
+    all_picks = Enum.flat_map(completed_rounds, & &1.picks)
+
+    build_game_stats(game_id, game, length(game.rounds), length(completed_rounds), all_picks)
+  end
+
+  defp build_game_stats(game_id, _game, total_rounds, _played_rounds, []) do
+    %{
+      game_id: game_id,
+      total_rounds: total_rounds,
+      played_rounds: 0,
+      average_accuracy: 0.0,
+      total_correct: 0,
+      total_wrong: 0,
+      player_stats: []
+    }
+  end
+
+  defp build_game_stats(game_id, game, total_rounds, played_rounds, all_picks) do
+    correct_picks = Enum.count(all_picks, & &1.is_correct)
+    wrong_picks = length(all_picks) - correct_picks
+    average_accuracy = correct_picks / length(all_picks) * 100
+
+    player_stats =
+      game.players
+      |> Enum.map(&build_player_stats(&1, all_picks))
+      |> Enum.sort_by(& &1.accuracy, :desc)
+
+    %{
+      game_id: game_id,
+      total_rounds: total_rounds,
+      played_rounds: played_rounds,
+      average_accuracy: Float.round(average_accuracy, 1),
+      total_correct: correct_picks,
+      total_wrong: wrong_picks,
+      player_stats: player_stats
+    }
+  end
+
+  defp build_player_stats(player, all_picks) do
+    player_picks = Enum.filter(all_picks, &(&1.player_id == player.id))
+    correct = Enum.count(player_picks, & &1.is_correct)
+    total = length(player_picks)
+    accuracy = if total > 0, do: correct / total * 100, else: 0.0
+    avg_keywords = calculate_average_keywords(player_picks, total)
+
+    %{
+      player: player,
+      picks_made: total,
+      correct: correct,
+      wrong: total - correct,
+      accuracy: Float.round(accuracy, 1),
+      average_keywords_used: avg_keywords,
+      points: player.points
+    }
+  end
+
+  defp calculate_average_keywords([], _total), do: 0.0
+
+  defp calculate_average_keywords(player_picks, total) do
+    total_kw = Enum.reduce(player_picks, 0, fn p, acc -> acc + p.keywords_shown end)
+    Float.round(total_kw / total, 1)
+  end
+
+  @doc """
+  Gets picks for the current round with player information.
+  """
+  def get_round_picks_with_players(round_id) do
+    from(p in Pick,
+      where: p.round_id == ^round_id,
+      join: player in assoc(p, :player),
+      preload: [player: player],
+      order_by: [asc: p.inserted_at]
+    )
+    |> Repo.all()
+  end
+
+  # Game cleanup functions
+
+  @doc """
+  Stops and cleans up a game when the host disconnects.
+  This prevents zombie games from staying in the system.
+  """
+  def cleanup_game_on_host_disconnect(game_id) do
+    case Repo.get(Game, game_id) do
+      nil ->
+        :ok
+
+      game ->
+        # Stop the game server if running
+        stop_game_server(game_id)
+
+        # Update game state to indicate host disconnected
+        game
+        |> Game.changeset(%{state: "host_disconnected"})
+        |> Repo.update()
+
+        # Broadcast to all players that the game was stopped
+        broadcast_to_game(game_id, :host_disconnected)
+        broadcast_game_count_changed()
+
+        :ok
+    end
+  end
+
+  @doc """
+  Gets a game by ID.
+  """
+  def get_game(game_id) do
+    Repo.get(Game, game_id)
   end
 end

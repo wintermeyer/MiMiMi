@@ -14,33 +14,42 @@ defmodule MimimiWeb.GameLive.Play do
     game = Games.get_game_with_players(game_id)
     user = socket.assigns.current_user
 
-    # Check if player exists for this game
     player = Games.get_player_by_game_and_user(game_id, user.id)
 
     socket =
-      if player do
-        socket = maybe_subscribe_to_game(socket, game_id, game.state, user.id)
-
-        socket =
+      cond do
+        is_nil(player) ->
           socket
-          |> assign(:game, game)
-          |> assign(:player, player)
-          |> assign(:pending_players, MapSet.new())
-          |> assign(:page_title, "Spiel")
+          |> put_flash(:error, "Du bist nicht in diesem Spiel.")
+          |> push_navigate(to: ~p"/")
 
-        # Load current round if game is running
-        if game.state == "game_running" do
-          load_current_round(socket, game_id)
-        else
+        game.state in ["host_disconnected", "game_over"] ->
           socket
-        end
-      else
-        socket
-        |> put_flash(:error, "Du bist nicht in diesem Spiel.")
-        |> push_navigate(to: ~p"/")
+          |> put_flash(:error, "Das Spiel ist nicht mehr aktiv.")
+          |> push_navigate(to: ~p"/")
+
+        true ->
+          mount_player_game(socket, game, player, game_id, user.id)
       end
 
     {:ok, socket, temporary_assigns: []}
+  end
+
+  defp mount_player_game(socket, game, player, game_id, user_id) do
+    socket = maybe_subscribe_to_game(socket, game_id, game.state, user_id)
+
+    socket =
+      socket
+      |> assign(:game, game)
+      |> assign(:player, player)
+      |> assign(:pending_players, MapSet.new())
+      |> assign(:page_title, "Spiel")
+
+    if game.state == "game_running" do
+      load_current_round(socket, game_id)
+    else
+      socket
+    end
   end
 
   defp maybe_subscribe_to_game(socket, game_id, game_state, user_id) do
@@ -51,6 +60,18 @@ defmodule MimimiWeb.GameLive.Play do
       if game_state == "waiting_for_players" do
         Phoenix.PubSub.subscribe(Mimimi.PubSub, "player_presence:#{game_id}:#{user_id}")
       end
+
+      # Track player presence so host can see when players disconnect
+      Mimimi.Presence.track(
+        self(),
+        "game:#{game_id}:players",
+        "player_#{user_id}",
+        %{
+          user_id: user_id,
+          game_id: game_id,
+          joined_at: System.system_time(:second)
+        }
+      )
     end
 
     socket
@@ -59,30 +80,23 @@ defmodule MimimiWeb.GameLive.Play do
   defp load_current_round(socket, game_id) do
     case Games.get_current_round(game_id) do
       nil ->
-        # No current round - should not happen during game_running
         socket
         |> put_flash(:error, "Keine aktuelle Runde gefunden.")
         |> push_navigate(to: ~p"/")
 
       round ->
-        # Load possible words with images from WortSchule
         possible_word_ids = round.possible_words_ids
         possible_words = fetch_words_with_images(possible_word_ids)
 
-        # Load keywords for this round
         keyword_ids = round.keyword_ids
         keywords = fetch_keywords(keyword_ids)
-
-        # Start the game server timer if not already running
-        if socket.assigns.game.state == "game_running" && round.state == "playing" do
-          Games.start_game_server(game_id, round.id, socket.assigns.game.clues_interval)
-        end
 
         socket
         |> assign(:current_round, round)
         |> assign(:possible_words, possible_words)
         |> assign(:keywords, keywords)
-        |> assign(:keywords_revealed, 1)
+        |> assign(:keywords_revealed, 0)
+        |> assign(:revealed_keywords, [])
         |> assign(:time_elapsed, 0)
         |> assign(:has_picked, false)
         |> assign(:pick_result, nil)
@@ -198,28 +212,55 @@ defmodule MimimiWeb.GameLive.Play do
     game = socket.assigns.game
     round = socket.assigns.current_round
 
-    Games.finish_round(round)
+    # Check if this round is still in the "playing" state
+    # This prevents double-advancing if multiple messages somehow get through
+    current_round_state = Mimimi.Repo.get!(Mimimi.Games.Round, round.id)
 
-    case Games.advance_to_next_round(game.id) do
-      {:ok, _next_round} ->
-        Games.broadcast_to_game(game.id, :round_started)
-        {:noreply, load_current_round(socket, game.id)}
+    if current_round_state.state == "playing" do
+      Games.finish_round(round)
 
-      {:error, :no_more_rounds} ->
-        Games.update_game_state(game, "game_over")
-        Games.broadcast_to_game(game.id, :game_finished)
-        Games.stop_game_server(game.id)
-        {:noreply, push_navigate(socket, to: ~p"/dashboard/#{game.id}")}
+      case Games.advance_to_next_round(game.id) do
+        {:ok, next_round} ->
+          Games.broadcast_to_game(game.id, :round_started)
+          Process.sleep(100)
+          Games.start_game_server(game.id, next_round.id, game.clues_interval)
+          {:noreply, load_current_round(socket, game.id)}
+
+        {:error, :no_more_rounds} ->
+          Games.update_game_state(game, "game_over")
+          Games.broadcast_to_game(game.id, :game_finished)
+          Games.stop_game_server(game.id)
+          {:noreply, push_navigate(socket, to: ~p"/dashboard/#{game.id}")}
+      end
+    else
+      # Round already finished, just ignore this message
+      {:noreply, socket}
     end
   end
 
-  def handle_info({:player_picked, _player_id, _is_correct}, socket) do
+  def handle_info({:player_picked, player_id, _is_correct}, socket) do
+    players_picked = MapSet.put(socket.assigns.players_picked, player_id)
     all_picked = Games.all_players_picked?(socket.assigns.current_round.id)
-    {:noreply, assign(socket, :waiting_for_others, not all_picked)}
+    {:noreply, assign(socket, waiting_for_others: not all_picked, players_picked: players_picked)}
+  end
+
+  def handle_info(:all_players_picked, socket) do
+    # Schedule the round advancement after showing feedback
+    # Only one :all_players_picked message is sent per round, so this prevents
+    # multiple advancement messages from being scheduled
+    Process.send_after(self(), :show_feedback_and_advance, 3000)
+    {:noreply, socket}
   end
 
   def handle_info(:round_started, socket) do
     {:noreply, load_current_round(socket, socket.assigns.game.id)}
+  end
+
+  def handle_info(:host_disconnected, socket) do
+    {:noreply,
+     socket
+     |> put_flash(:error, "Der Spielleiter hat die Verbindung getrennt. Das Spiel wurde beendet.")
+     |> push_navigate(to: ~p"/")}
   end
 
   @impl true
@@ -236,31 +277,32 @@ defmodule MimimiWeb.GameLive.Play do
     case Games.create_pick(round.id, player.id, %{
            is_correct: is_correct,
            keywords_shown: socket.assigns.keywords_revealed,
-           time: socket.assigns.time_elapsed
+           time: socket.assigns.time_elapsed,
+           word_id: word_id
          }) do
-      {:ok, _pick} ->
+      {:ok, {_pick, all_picked}} ->
         if is_correct do
-          Games.add_points(player, points)
+          # Reload player to get current points before adding new points
+          fresh_player = Mimimi.Repo.get!(Games.Player, player.id)
+          Games.add_points(fresh_player, points)
         end
 
+        # Broadcast to all players that someone picked
         Games.broadcast_to_game(game.id, {:player_picked, player.id, is_correct})
 
-        all_picked = Games.all_players_picked?(round.id)
+        # Only broadcast :all_players_picked if this was the LAST pick
+        # The all_picked flag is set atomically in the transaction, so only
+        # one player will ever see all_picked=true per round
+        if all_picked do
+          Games.broadcast_to_game(game.id, :all_players_picked)
+        end
 
         socket =
           socket
           |> assign(:has_picked, true)
           |> assign(:pick_result, if(is_correct, do: :correct, else: :wrong))
           |> assign(:points_earned, points)
-
-        socket =
-          if all_picked do
-            assign(socket, :waiting_for_others, false)
-          else
-            assign(socket, :waiting_for_others, true)
-          end
-
-        Process.send_after(self(), :show_feedback_and_advance, 3000)
+          |> assign(:waiting_for_others, not all_picked)
 
         {:noreply, socket}
 
@@ -332,8 +374,7 @@ defmodule MimimiWeb.GameLive.Play do
             </div>
           </div>
         <% else %>
-          <%!-- Game running --%>
-          <%= if @current_round do %>
+          <%= if Map.has_key?(assigns, :current_round) && @current_round do %>
             <div class="text-center mb-8">
               <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-orange-500 to-red-500 mb-4 shadow-lg">
                 <span class="text-4xl">🎯</span>
@@ -350,36 +391,45 @@ defmodule MimimiWeb.GameLive.Play do
             <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 mb-8">
               <div class="flex flex-wrap justify-center gap-3">
                 <%= for {keyword, index} <- Enum.with_index(@keywords, 1) do %>
-                  <% is_revealed = index <= @keywords_revealed
-                  # The current keyword is the next one to be revealed (not yet revealed)
-                  is_current = index == @keywords_revealed + 1
+                  <% # A keyword is fully revealed if we've moved past it
+                  is_revealed = index < @keywords_revealed
+                  # The current keyword is the one being revealed right now
+                  is_current = index == @keywords_revealed
+                  # Not yet reached
+                  is_upcoming = index > @keywords_revealed
+
                   # Calculate progress for the current keyword
                   progress_percent =
-                    if is_current && @time_elapsed > 0 do
-                      # Time since the last keyword was revealed
-                      time_in_interval = rem(@time_elapsed, @game.clues_interval)
-                      # If time_in_interval is 0, we just revealed this keyword, so it's 100%
-                      if time_in_interval == 0 do
-                        100
-                      else
-                        (time_in_interval / @game.clues_interval * 100) |> round()
-                      end
+                    if is_current && @keywords_revealed > 0 do
+                      # Time since this keyword was revealed
+                      # For keyword N, it was revealed at time (N-1) * interval
+                      # So the time it's been showing is: elapsed - (N-1) * interval
+                      keyword_revealed_at = (@keywords_revealed - 1) * @game.clues_interval
+                      time_showing = @time_elapsed - keyword_revealed_at
+
+                      # Progress is how much of the interval has passed
+                      min(time_showing / @game.clues_interval * 100, 100) |> round()
                     else
                       0
                     end %>
-                  <div class={[
-                    "relative overflow-hidden px-4 py-2 rounded-2xl font-semibold transition-all duration-300 transform",
-                    cond do
-                      is_revealed ->
-                        "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg scale-100"
+                  <div class={
+                    [
+                      "relative overflow-hidden px-4 py-2 rounded-2xl font-semibold transition-all duration-300 transform",
+                      cond do
+                        is_revealed ->
+                          # Fully revealed keywords show with purple gradient
+                          "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg scale-100"
 
-                      is_current ->
-                        "bg-gray-300 dark:bg-gray-700 text-gray-900 dark:text-gray-100 scale-100"
+                        is_current ->
+                          # Current keyword shows gray background with progress bar
+                          "bg-gray-300 dark:bg-gray-700 text-gray-900 dark:text-gray-100 scale-100"
 
-                      true ->
-                        "bg-gray-300 dark:bg-gray-700 text-gray-400 dark:text-gray-500 scale-95 opacity-60"
-                    end
-                  ]}>
+                        is_upcoming ->
+                          # Upcoming keywords are dimmed
+                          "bg-gray-300 dark:bg-gray-700 text-gray-400 dark:text-gray-500 scale-95 opacity-60"
+                      end
+                    ]
+                  }>
                     <%= if is_current && progress_percent > 0 do %>
                       <%!-- Progress bar for current keyword --%>
                       <div
@@ -389,17 +439,15 @@ defmodule MimimiWeb.GameLive.Play do
                       </div>
                     <% end %>
                     <span class="relative z-10">
-                      {if is_revealed, do: keyword.name, else: "???"}
+                      {if is_revealed || is_current, do: keyword.name, else: "???"}
                     </span>
                   </div>
                 <% end %>
               </div>
             </div>
 
-            <%!-- Word grid --%>
             <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
               <%= if @has_picked do %>
-                <%!-- Feedback overlay --%>
                 <div class="text-center py-12">
                   <div class={[
                     "inline-flex items-center justify-center w-24 h-24 rounded-full mb-6 shadow-lg",
@@ -423,17 +471,43 @@ defmodule MimimiWeb.GameLive.Play do
                     </p>
                   <% end %>
 
-                  <p class="text-gray-600 dark:text-gray-400 mb-6">
-                    {if @waiting_for_others,
-                      do: "Warte auf andere Spieler...",
-                      else: "Nächste Runde beginnt..."}
-                  </p>
-
                   <%= if @waiting_for_others do %>
-                    <div class="flex justify-center">
-                      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 dark:border-purple-400">
+                    <p class="text-gray-600 dark:text-gray-400 mb-6">
+                      Warte auf andere Spieler...
+                    </p>
+
+                    <div class="max-w-md mx-auto mb-6">
+                      <div class="grid grid-cols-4 sm:grid-cols-5 gap-3">
+                        <%= for player <- @game.players do %>
+                          <% has_picked = MapSet.member?(@players_picked, player.id) %>
+                          <div class={[
+                            "relative flex flex-col items-center justify-center p-3 rounded-2xl aspect-square transition-all duration-300",
+                            if(has_picked,
+                              do:
+                                "bg-green-100 dark:bg-green-900/30 border-2 border-green-500 dark:border-green-400",
+                              else:
+                                "bg-gray-100 dark:bg-gray-800 border-2 border-dashed border-gray-300 dark:border-gray-600 animate-pulse"
+                            )
+                          ]}>
+                            <span class={[
+                              "text-4xl",
+                              if(has_picked, do: "", else: "opacity-50")
+                            ]}>
+                              {player.avatar}
+                            </span>
+                            <%= if has_picked do %>
+                              <div class="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-green-500 shadow-lg flex items-center justify-center">
+                                <span class="text-white text-xs font-bold">✓</span>
+                              </div>
+                            <% end %>
+                          </div>
+                        <% end %>
                       </div>
                     </div>
+                  <% else %>
+                    <p class="text-gray-600 dark:text-gray-400 mb-6">
+                      Nächste Runde beginnt...
+                    </p>
                   <% end %>
                 </div>
               <% else %>

@@ -16,10 +16,29 @@ defmodule MimimiWeb.HomeLiveTest do
   end
 
   describe "Home page" do
-    test "displays both join game and create game sections", %{conn: conn} do
+    test "displays only create game section when no games are waiting", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
-      # Check for join game section
+      # Join game section should not be visible when no games are waiting
+      refute has_element?(view, "h2", "Spiel beitreten")
+      refute has_element?(view, "#join-game-form")
+
+      # Check for create game section
+      assert has_element?(view, "h2", "Neues Spiel")
+      assert has_element?(view, "#game-setup-form")
+    end
+
+    test "displays both join and create game sections when games are waiting for players", %{
+      conn: conn,
+      user: user
+    } do
+      # Create a game in waiting_for_players state
+      {:ok, _game} =
+        Games.create_game(user.id, %{rounds_count: 3, clues_interval: 9, grid_size: 9})
+
+      {:ok, view, _html} = live(conn, "/")
+
+      # Check for join game section (should now be visible)
       assert has_element?(view, "h2", "Spiel beitreten")
       assert has_element?(view, "#join-game-form")
 
@@ -28,7 +47,11 @@ defmodule MimimiWeb.HomeLiveTest do
       assert has_element?(view, "#game-setup-form")
     end
 
-    test "allows entering invitation code", %{conn: conn} do
+    test "allows entering invitation code", %{conn: conn, user: user} do
+      # Create a game so join form is visible
+      {:ok, _game} =
+        Games.create_game(user.id, %{rounds_count: 3, clues_interval: 9, grid_size: 9})
+
       {:ok, view, _html} = live(conn, "/")
 
       # Enter a code
@@ -40,7 +63,11 @@ defmodule MimimiWeb.HomeLiveTest do
       assert has_element?(view, "input[name='invite[code]'][value='123456']")
     end
 
-    test "cleans up non-numeric characters from invitation code", %{conn: conn} do
+    test "cleans up non-numeric characters from invitation code", %{conn: conn, user: user} do
+      # Create a game so join form is visible
+      {:ok, _game} =
+        Games.create_game(user.id, %{rounds_count: 3, clues_interval: 9, grid_size: 9})
+
       {:ok, view, _html} = live(conn, "/")
 
       # Enter a code with non-numeric characters
@@ -52,7 +79,11 @@ defmodule MimimiWeb.HomeLiveTest do
       assert has_element?(view, "input[name='invite[code]'][value='123456']")
     end
 
-    test "shows error when submitting empty code", %{conn: conn} do
+    test "shows error when submitting empty code", %{conn: conn, user: user} do
+      # Create a game so join form is visible
+      {:ok, _game} =
+        Games.create_game(user.id, %{rounds_count: 3, clues_interval: 9, grid_size: 9})
+
       {:ok, view, _html} = live(conn, "/")
 
       view
@@ -63,7 +94,11 @@ defmodule MimimiWeb.HomeLiveTest do
       assert render(view) =~ "Bitte gib einen Einladungscode ein"
     end
 
-    test "shows error when submitting code with wrong length", %{conn: conn} do
+    test "shows error when submitting code with wrong length", %{conn: conn, user: user} do
+      # Create a game so join form is visible
+      {:ok, _game} =
+        Games.create_game(user.id, %{rounds_count: 3, clues_interval: 9, grid_size: 9})
+
       {:ok, view, _html} = live(conn, "/")
 
       view
@@ -74,7 +109,11 @@ defmodule MimimiWeb.HomeLiveTest do
       assert render(view) =~ "Der Code muss 6 Ziffern haben"
     end
 
-    test "shows error for non-existent invitation code", %{conn: conn} do
+    test "shows error for non-existent invitation code", %{conn: conn, user: user} do
+      # Create a game so join form is visible
+      {:ok, _game} =
+        Games.create_game(user.id, %{rounds_count: 3, clues_interval: 9, grid_size: 9})
+
       {:ok, view, _html} = live(conn, "/")
 
       view
@@ -136,11 +175,16 @@ defmodule MimimiWeb.HomeLiveTest do
 
       short_code = Games.get_short_code_for_game(game.id)
 
-      # Start the game
+      # Start the game - this changes state to game_running
       Games.update_game_state(game, "game_running")
+
+      # Create another game that is still waiting - so the join form is visible
+      {:ok, _waiting_game} =
+        Games.create_game(user.id, %{rounds_count: 3, clues_interval: 9, grid_size: 9})
 
       {:ok, view, _html} = live(conn, "/")
 
+      # Try to join the started game with its code
       view
       |> form("#join-game-form", invite: %{code: short_code})
       |> render_submit()
@@ -163,6 +207,53 @@ defmodule MimimiWeb.HomeLiveTest do
       # Should redirect to set-host-token route
       assert path =~ "/game/"
       assert path =~ "/set-host-token"
+    end
+
+    test "displays word type selection checkboxes", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      # Check that all word type options are displayed
+      assert has_element?(view, "#word-type-noun")
+      assert has_element?(view, "#word-type-verb")
+      assert has_element?(view, "#word-type-adjective")
+      assert has_element?(view, "#word-type-adverb")
+      assert has_element?(view, "#word-type-other")
+
+      # Check that Noun is checked by default
+      html = render(view)
+      assert html =~ "Nomen"
+      assert html =~ "Verb"
+      assert html =~ "Adjektiv"
+      assert html =~ "Adverb"
+      assert html =~ "Andere"
+    end
+
+    test "creates game with custom word types", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      # Submit the create game form with multiple word types
+      {:error, {:redirect, %{to: _path}}} =
+        view
+        |> form("#game-setup-form",
+          game: %{
+            rounds_count: "3",
+            clues_interval: "9",
+            grid_size: "9",
+            word_types: ["Noun", "Verb", "Adjective"]
+          }
+        )
+        |> render_submit()
+
+      # Verify the game was created with the selected word types
+      game =
+        Games.get_game_by_short_code(
+          Games.get_short_code_for_game(List.first(Mimimi.Repo.all(Games.Game)).id)
+        )
+
+      assert length(game.word_types) == 3
+      assert "Noun" in game.word_types
+      assert "Verb" in game.word_types
+      assert "Adjective" in game.word_types
     end
   end
 end

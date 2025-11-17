@@ -79,8 +79,8 @@ defmodule Mimimi.GameServer do
       Process.cancel_timer(state.timer_ref)
     end
 
-    # Start a new timer that ticks every second
-    timer_ref = Process.send_after(self(), :tick, 1000)
+    # Start a new timer that ticks every second, tagged with the round_id
+    timer_ref = Process.send_after(self(), {:tick, round_id}, 1000)
 
     Logger.info("GameServer: Starting round timer for game #{state.game_id}, round #{round_id}")
 
@@ -119,32 +119,41 @@ defmodule Mimimi.GameServer do
     {:reply, state, state}
   end
 
-  def handle_info(:tick, state) do
-    # Increment elapsed time
-    new_elapsed = state.elapsed_seconds + 1
+  def handle_info({:tick, round_id}, state) do
+    # Ignore ticks from previous rounds (prevents stale ticks from affecting new rounds)
+    if round_id != state.round_id do
+      Logger.debug(
+        "GameServer: Ignoring stale tick from round #{round_id}, current round is #{state.round_id}"
+      )
 
-    # Check if it's time to reveal the next keyword
-    should_reveal =
-      rem(new_elapsed, state.clues_interval) == 0 and
-        new_elapsed > 0
+      {:noreply, state}
+    else
+      # Increment elapsed time
+      new_elapsed = state.elapsed_seconds + 1
 
-    # Always broadcast the current time and keyword count (for progress bar)
-    new_revealed =
-      if should_reveal, do: state.keywords_revealed + 1, else: state.keywords_revealed
+      # Check if it's time to reveal the next keyword
+      should_reveal =
+        rem(new_elapsed, state.clues_interval) == 0 and
+          new_elapsed > 0
 
-    Games.broadcast_to_game(state.game_id, {:keyword_revealed, new_revealed, new_elapsed})
+      # Always broadcast the current time and keyword count (for progress bar)
+      new_revealed =
+        if should_reveal, do: state.keywords_revealed + 1, else: state.keywords_revealed
 
-    if should_reveal do
-      Logger.debug("GameServer: Revealed keyword #{new_revealed} for game #{state.game_id}")
+      Games.broadcast_to_game(state.game_id, {:keyword_revealed, new_revealed, new_elapsed})
+
+      if should_reveal do
+        Logger.debug("GameServer: Revealed keyword #{new_revealed} for game #{state.game_id}")
+      end
+
+      {:noreply,
+       %{
+         state
+         | elapsed_seconds: new_elapsed,
+           keywords_revealed: new_revealed,
+           timer_ref: Process.send_after(self(), {:tick, round_id}, 1000)
+       }}
     end
-
-    {:noreply,
-     %{
-       state
-       | elapsed_seconds: new_elapsed,
-         keywords_revealed: new_revealed,
-         timer_ref: Process.send_after(self(), :tick, 1000)
-     }}
   end
 
   def terminate(reason, state) do

@@ -3,7 +3,26 @@ defmodule MimimiWeb.AvatarLive.Choose do
   alias Mimimi.Games
 
   @impl true
-  def mount(%{"short_code" => short_code}, _session, socket) do
+  def mount(%{"short_code" => short_code}, session, socket) do
+    active_game_id = Map.get(session, "active_game_id")
+
+    if active_game_id do
+      case Games.get_game(active_game_id) do
+        %{state: state} when state in ["waiting_for_players", "game_running"] ->
+          {:ok,
+           socket
+           |> put_flash(:error, "Du bist bereits in einem aktiven Spiel.")
+           |> push_navigate(to: ~p"/")}
+
+        _ ->
+          mount_avatar_selection(short_code, socket)
+      end
+    else
+      mount_avatar_selection(short_code, socket)
+    end
+  end
+
+  defp mount_avatar_selection(short_code, socket) do
     case Games.validate_short_code(short_code) do
       {:ok, game} ->
         if connected?(socket) do
@@ -53,6 +72,12 @@ defmodule MimimiWeb.AvatarLive.Choose do
          socket
          |> put_flash(:error, "Das Spiel ist zu Ende. Es hat zu lange gedauert.")
          |> push_navigate(to: ~p"/")}
+
+      {:error, :host_disconnected} ->
+        {:ok,
+         socket
+         |> put_flash(:error, "Der Gastgeber hat die Verbindung verloren.")
+         |> push_navigate(to: ~p"/")}
     end
   end
 
@@ -70,7 +95,7 @@ defmodule MimimiWeb.AvatarLive.Choose do
           # Notify that pending player is no longer pending (they joined)
           Games.broadcast_to_game(game.id, {:pending_player_left, user.id})
           Games.broadcast_to_game(game.id, :player_joined)
-          {:noreply, push_navigate(socket, to: ~p"/games/#{game.id}/current")}
+          {:noreply, redirect(socket, to: ~p"/game/#{game.id}/join")}
 
         {:error, _} ->
           {:noreply,
@@ -112,6 +137,13 @@ defmodule MimimiWeb.AvatarLive.Choose do
     {:noreply,
      socket
      |> put_flash(:error, "Das Spiel ist zu Ende. Es hat zu lange gedauert.")
+     |> push_navigate(to: ~p"/")}
+  end
+
+  def handle_info(:host_disconnected, socket) do
+    {:noreply,
+     socket
+     |> put_flash(:error, "Der Gastgeber hat die Verbindung verloren.")
      |> push_navigate(to: ~p"/")}
   end
 

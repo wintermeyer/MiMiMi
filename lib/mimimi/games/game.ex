@@ -54,7 +54,8 @@ defmodule Mimimi.Games.Game do
       "waiting_for_players",
       "game_running",
       "game_over",
-      "lobby_timeout"
+      "lobby_timeout",
+      "host_disconnected"
     ])
     |> unique_constraint(:invitation_id)
     |> unique_constraint(:host_token)

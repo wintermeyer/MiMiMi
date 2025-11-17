@@ -3,25 +3,62 @@ defmodule MimimiWeb.HomeLive.Index do
   alias Mimimi.Games
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(_params, session, socket) do
     if connected?(socket) do
       Games.subscribe_to_active_games()
     end
+
+    active_game_id = Map.get(session, "active_game_id")
+
+    if active_game_id do
+      case Games.get_game(active_game_id) do
+        %{state: state} = game when state in ["waiting_for_players", "game_running"] ->
+          player = Games.get_player_by_game_and_user(game.id, socket.assigns.current_user.id)
+          is_host = game.host_user_id == socket.assigns.current_user.id
+
+          cond do
+            is_host ->
+              {:ok, push_navigate(socket, to: ~p"/dashboard/#{game.id}")}
+
+            player ->
+              {:ok, push_navigate(socket, to: ~p"/games/#{game.id}/current")}
+
+            true ->
+              mount_home_page(socket, session)
+          end
+
+        _ ->
+          mount_home_page(socket, session)
+      end
+    else
+      mount_home_page(socket, session)
+    end
+  end
+
+  defp mount_home_page(socket, _session) do
+    has_waiting_games = has_waiting_games?()
 
     {:ok,
      socket
      |> assign(
        :form,
-       to_form(%{"rounds_count" => "3", "clues_interval" => "9", "grid_size" => "9"})
+       to_form(%{
+         "rounds_count" => "3",
+         "clues_interval" => "9",
+         "grid_size" => "9",
+         "word_types" => ["Noun"]
+       })
      )
      |> assign(:invite_form, to_form(%{"code" => ""}, as: :invite))
      |> assign(:invite_error, nil)
+     |> assign(:has_waiting_games, has_waiting_games)
      |> assign(:page_title, "MiMiMi")}
   end
 
   @impl true
   def handle_info(:game_count_changed, socket) do
-    {:noreply, assign(socket, :active_games, Games.count_active_games())}
+    has_waiting_games = has_waiting_games?()
+    {:noreply, assign(socket, :has_waiting_games, has_waiting_games)}
   end
 
   @impl true
@@ -60,11 +97,13 @@ defmodule MimimiWeb.HomeLive.Index do
     rounds_count = String.to_integer(game_params["rounds_count"] || "3")
     clues_interval = String.to_integer(game_params["clues_interval"] || "9")
     grid_size = String.to_integer(game_params["grid_size"] || "9")
+    word_types = Map.get(game_params, "word_types", ["Noun"])
 
     case Games.create_game(socket.assigns.current_user.id, %{
            rounds_count: rounds_count,
            clues_interval: clues_interval,
-           grid_size: grid_size
+           grid_size: grid_size,
+           word_types: word_types
          }) do
       {:ok, game} ->
         # Redirect to controller route that sets the host token cookie
@@ -95,75 +134,77 @@ defmodule MimimiWeb.HomeLive.Index do
             Wörter-Ratespiel
           </p>
         </div>
-        <%!-- JOIN GAME SECTION --%>
-        <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
-          <div class="text-center mb-6">
-            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 mb-3 shadow-lg">
-              <span class="text-3xl">🎯</span>
-            </div>
-            <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-              Spiel beitreten
-            </h2>
-            <p class="text-gray-600 dark:text-gray-400 text-sm">
-              Gib deinen Einladungscode ein
-            </p>
-          </div>
-
-          <.form
-            for={@invite_form}
-            id="join-game-form"
-            phx-change="validate_invite"
-            phx-submit="join_game"
-            class="space-y-4"
-          >
-            <div class="space-y-2">
-              <div class="relative group">
-                <div class="absolute inset-0 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl opacity-0 group-hover:opacity-10 transition-opacity duration-300">
-                </div>
-                <input
-                  type="text"
-                  name="invite[code]"
-                  value={@invite_form[:code].value || ""}
-                  placeholder="123456"
-                  maxlength="6"
-                  inputmode="numeric"
-                  pattern="[0-9]*"
-                  autocomplete="off"
-                  class="relative w-full text-center text-2xl font-bold tracking-widest px-4 py-4 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-xl focus:border-green-500 dark:focus:border-green-400 focus:ring-4 focus:ring-green-100 dark:focus:ring-green-900/30 transition-all duration-200 dark:text-white outline-none"
-                />
+        <%!-- JOIN GAME SECTION - Only show when there are games waiting for players --%>
+        <%= if @has_waiting_games do %>
+          <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
+            <div class="text-center mb-6">
+              <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 mb-3 shadow-lg">
+                <span class="text-3xl">🎯</span>
               </div>
-
-              <%= if @invite_error do %>
-                <div class="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
-                  <span class="text-lg">⚠️</span>
-                  <p class="text-sm text-red-600 dark:text-red-400 font-medium">
-                    {@invite_error}
-                  </p>
-                </div>
-              <% end %>
+              <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+                Spiel beitreten
+              </h2>
+              <p class="text-gray-600 dark:text-gray-400 text-sm">
+                Gib deinen Einladungscode ein
+              </p>
             </div>
 
-            <button
-              type="submit"
-              class="relative w-full text-lg font-semibold py-4 bg-gradient-to-r from-green-600 via-green-500 to-emerald-500 hover:from-green-700 hover:via-green-600 hover:to-emerald-600 text-white rounded-2xl shadow-xl shadow-green-500/30 hover:shadow-2xl hover:shadow-green-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 overflow-hidden group"
+            <.form
+              for={@invite_form}
+              id="join-game-form"
+              phx-change="validate_invite"
+              phx-submit="join_game"
+              class="space-y-4"
             >
-              <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700">
+              <div class="space-y-2">
+                <div class="relative group">
+                  <div class="absolute inset-0 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl opacity-0 group-hover:opacity-10 transition-opacity duration-300">
+                  </div>
+                  <input
+                    type="text"
+                    name="invite[code]"
+                    value={@invite_form[:code].value || ""}
+                    placeholder="123456"
+                    maxlength="6"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    autocomplete="off"
+                    class="relative w-full text-center text-2xl font-bold tracking-widest px-4 py-4 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-xl focus:border-green-500 dark:focus:border-green-400 focus:ring-4 focus:ring-green-100 dark:focus:ring-green-900/30 transition-all duration-200 dark:text-white outline-none"
+                  />
+                </div>
+
+                <%= if @invite_error do %>
+                  <div class="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+                    <span class="text-lg">⚠️</span>
+                    <p class="text-sm text-red-600 dark:text-red-400 font-medium">
+                      {@invite_error}
+                    </p>
+                  </div>
+                <% end %>
               </div>
-              <span class="relative">Spiel beitreten</span>
-            </button>
-          </.form>
-        </div>
-        <%!-- DIVIDER --%>
-        <div class="relative">
-          <div class="absolute inset-0 flex items-center">
-            <div class="w-full border-t-2 border-gray-200 dark:border-gray-700"></div>
+
+              <button
+                type="submit"
+                class="relative w-full text-lg font-semibold py-4 bg-gradient-to-r from-green-600 via-green-500 to-emerald-500 hover:from-green-700 hover:via-green-600 hover:to-emerald-600 text-white rounded-2xl shadow-xl shadow-green-500/30 hover:shadow-2xl hover:shadow-green-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 overflow-hidden group"
+              >
+                <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700">
+                </div>
+                <span class="relative">Spiel beitreten</span>
+              </button>
+            </.form>
           </div>
-          <div class="relative flex justify-center">
-            <span class="px-4 text-sm font-semibold text-gray-500 dark:text-gray-400 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900">
-              oder
-            </span>
+          <%!-- DIVIDER --%>
+          <div class="relative">
+            <div class="absolute inset-0 flex items-center">
+              <div class="w-full border-t-2 border-gray-200 dark:border-gray-700"></div>
+            </div>
+            <div class="relative flex justify-center">
+              <span class="px-4 text-sm font-semibold text-gray-500 dark:text-gray-400 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900">
+                oder
+              </span>
+            </div>
           </div>
-        </div>
+        <% end %>
         <%!-- CREATE GAME SECTION --%>
         <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
           <div class="text-center mb-6">
@@ -256,6 +297,144 @@ defmodule MimimiWeb.HomeLive.Index do
                     </path>
                   </svg>
                 </div>
+              </div>
+            </div>
+
+            <%!-- Word Types Selection --%>
+            <div class="space-y-3">
+              <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                Wortarten
+              </label>
+              <div class="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  phx-click={JS.dispatch("click", to: "#word-type-noun")}
+                  class={[
+                    "relative py-3 px-4 rounded-xl font-medium text-sm transition-all duration-300 overflow-hidden group",
+                    if("Noun" in (@form[:word_types].value || []),
+                      do:
+                        "bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30",
+                      else:
+                        "bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-purple-300 dark:hover:border-purple-600 hover:shadow-md"
+                    )
+                  ]}
+                >
+                  <div class="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
+                  </div>
+                  <span class="relative">Nomen</span>
+                </button>
+                <input
+                  type="checkbox"
+                  id="word-type-noun"
+                  name="game[word_types][]"
+                  value="Noun"
+                  checked={"Noun" in (@form[:word_types].value || [])}
+                  class="hidden"
+                />
+
+                <button
+                  type="button"
+                  phx-click={JS.dispatch("click", to: "#word-type-verb")}
+                  class={[
+                    "relative py-3 px-4 rounded-xl font-medium text-sm transition-all duration-300 overflow-hidden group",
+                    if("Verb" in (@form[:word_types].value || []),
+                      do:
+                        "bg-gradient-to-br from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/30",
+                      else:
+                        "bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md"
+                    )
+                  ]}
+                >
+                  <div class="absolute inset-0 bg-gradient-to-br from-blue-500 to-cyan-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
+                  </div>
+                  <span class="relative">Verb</span>
+                </button>
+                <input
+                  type="checkbox"
+                  id="word-type-verb"
+                  name="game[word_types][]"
+                  value="Verb"
+                  checked={"Verb" in (@form[:word_types].value || [])}
+                  class="hidden"
+                />
+
+                <button
+                  type="button"
+                  phx-click={JS.dispatch("click", to: "#word-type-adjective")}
+                  class={[
+                    "relative py-3 px-4 rounded-xl font-medium text-sm transition-all duration-300 overflow-hidden group",
+                    if("Adjective" in (@form[:word_types].value || []),
+                      do:
+                        "bg-gradient-to-br from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/30",
+                      else:
+                        "bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-green-300 dark:hover:border-green-600 hover:shadow-md"
+                    )
+                  ]}
+                >
+                  <div class="absolute inset-0 bg-gradient-to-br from-green-500 to-emerald-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
+                  </div>
+                  <span class="relative">Adjektiv</span>
+                </button>
+                <input
+                  type="checkbox"
+                  id="word-type-adjective"
+                  name="game[word_types][]"
+                  value="Adjective"
+                  checked={"Adjective" in (@form[:word_types].value || [])}
+                  class="hidden"
+                />
+
+                <button
+                  type="button"
+                  phx-click={JS.dispatch("click", to: "#word-type-adverb")}
+                  class={[
+                    "relative py-3 px-4 rounded-xl font-medium text-sm transition-all duration-300 overflow-hidden group",
+                    if("Adverb" in (@form[:word_types].value || []),
+                      do:
+                        "bg-gradient-to-br from-yellow-500 to-orange-500 text-white shadow-lg shadow-yellow-500/30",
+                      else:
+                        "bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-yellow-300 dark:hover:border-yellow-600 hover:shadow-md"
+                    )
+                  ]}
+                >
+                  <div class="absolute inset-0 bg-gradient-to-br from-yellow-500 to-orange-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
+                  </div>
+                  <span class="relative">Adverb</span>
+                </button>
+                <input
+                  type="checkbox"
+                  id="word-type-adverb"
+                  name="game[word_types][]"
+                  value="Adverb"
+                  checked={"Adverb" in (@form[:word_types].value || [])}
+                  class="hidden"
+                />
+
+                <button
+                  type="button"
+                  phx-click={JS.dispatch("click", to: "#word-type-other")}
+                  class={[
+                    "relative py-3 px-4 rounded-xl font-medium text-sm transition-all duration-300 overflow-hidden group",
+                    if("Other" in (@form[:word_types].value || []),
+                      do:
+                        "bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg shadow-pink-500/30",
+                      else:
+                        "bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-pink-300 dark:hover:border-pink-600 hover:shadow-md"
+                    )
+                  ]}
+                >
+                  <div class="absolute inset-0 bg-gradient-to-br from-pink-500 to-rose-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
+                  </div>
+                  <span class="relative">Andere</span>
+                </button>
+                <input
+                  type="checkbox"
+                  id="word-type-other"
+                  name="game[word_types][]"
+                  value="Other"
+                  checked={"Other" in (@form[:word_types].value || [])}
+                  class="hidden"
+                />
               </div>
             </div>
 
@@ -415,4 +594,8 @@ defmodule MimimiWeb.HomeLive.Index do
   defp game_error_message(:game_over), do: "Das Spiel ist bereits vorbei"
   defp game_error_message(:lobby_timeout), do: "Die Lobby-Zeit ist abgelaufen"
   defp game_error_message(_), do: "Ein Fehler ist aufgetreten"
+
+  defp has_waiting_games? do
+    Games.count_waiting_games() > 0
+  end
 end

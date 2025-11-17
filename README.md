@@ -24,11 +24,12 @@ A mobile-first multiplayer word-guessing game built with Phoenix LiveView for Ge
 
 ### Player Experience
 - Join via invitation link, QR code scan, or manual 6-digit code entry
-- Manual code entry on home page for easy joining without links
+- Manual code entry form only appears when games are waiting for players (improved UX)
 - Select unique animal avatar (🐻🐘🦉🐸🦊🐰🦛🐱🦁🐼)
 - Real-time gameplay with progressive keyword reveals
 - Immediate feedback (correct/wrong)
 - Live leaderboard with points
+- Final leaderboard displayed to all players at game end
 
 ### Multiplayer Features
 - Real-time updates via Phoenix PubSub
@@ -36,6 +37,7 @@ A mobile-first multiplayer word-guessing game built with Phoenix LiveView for Ge
 - Automatic round progression
 - Synchronized game state across all devices
 - Active games counter in footer
+- **Host Disconnect Handling**: When the game host closes their browser, all players are automatically redirected to the home page with an informative flash message
 
 ### Word List Page
 - Browse all words from WortSchule database that have keywords and images
@@ -101,11 +103,14 @@ Visit `http://localhost:4000`
 
 ## 📊 Scoring System
 
-**Formula:** `points = total_keywords - keywords_shown + 1`
+Points are awarded based on how many keywords a player needed to see before guessing correctly:
 
-- Guess with 1 keyword shown: 5 points
-- Guess with 3 keywords shown: 3 points
-- Wrong answer: 0 points
+- Guess with 1 keyword shown: **5 points**
+- Guess with 2 keywords shown: **3 points**
+- Guess with 3 keywords shown: **1 point**
+- Wrong answer: **0 points**
+
+The faster you guess (fewer keywords needed), the more points you earn!
 
 ## 🔒 Security
 
