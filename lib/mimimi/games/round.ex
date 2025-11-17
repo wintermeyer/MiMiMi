@@ -8,13 +8,16 @@ defmodule Mimimi.Games.Round do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   schema "rounds" do
-    field :keyword_ids, {:array, :binary_id}, default: []
-    field :possible_words_ids, {:array, :binary_id}, default: []
+    # WortSchule word ID (not a foreign key)
+    field :word_id, :integer
+    # WortSchule keyword IDs
+    field :keyword_ids, {:array, :integer}, default: []
+    # WortSchule word IDs
+    field :possible_words_ids, {:array, :integer}, default: []
     field :position, :integer
     field :state, :string, default: "on_hold"
 
     belongs_to :game, Mimimi.Games.Game
-    belongs_to :word, Mimimi.Games.Word
     has_many :picks, Mimimi.Games.Pick
 
     timestamps()
@@ -27,7 +30,6 @@ defmodule Mimimi.Games.Round do
     |> validate_required([:position, :game_id, :word_id])
     |> validate_inclusion(:state, ["on_hold", "playing", "finished"])
     |> foreign_key_constraint(:game_id)
-    |> foreign_key_constraint(:word_id)
     |> unique_constraint([:game_id, :position])
   end
 end

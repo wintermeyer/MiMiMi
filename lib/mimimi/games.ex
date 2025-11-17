@@ -428,57 +428,72 @@ defmodule Mimimi.Games do
   # Round functions
 
   @doc """
-  Generates all rounds for a game.
+  Generates all rounds for a game using WortSchule data.
+  Fetches words with images and keywords from the external WortSchule database.
   """
   def generate_rounds(%Game{} = game) do
-    # Get words with sufficient keywords
-    words_with_keywords =
-      from(w in Word,
-        join: k in assoc(w, :keywords),
-        group_by: w.id,
-        having: count(k.id) >= 2,
-        select: w.id
-      )
-      |> Repo.all()
+    alias Mimimi.WortSchule
 
-    if length(words_with_keywords) < game.rounds_count do
-      raise "Not enough words with keywords to generate #{game.rounds_count} rounds"
+    # Get words with at least 3 keywords for target words
+    target_word_ids = WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 3)
+
+    if length(target_word_ids) < game.rounds_count do
+      raise "Not enough words with 3+ keywords to generate #{game.rounds_count} rounds"
     end
 
-    # Get all words for distractors
-    all_word_ids = Repo.all(from w in Word, select: w.id)
+    # Get all words with at least 1 keyword for distractors
+    all_word_ids = WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 1)
+
+    if length(all_word_ids) < game.rounds_count * (game.grid_size - 1) do
+      raise "Not enough words available to generate rounds with grid size #{game.grid_size}"
+    end
 
     # Generate each round
     Enum.each(1..game.rounds_count, fn position ->
-      # Select a target word
-      target_word_id = Enum.random(words_with_keywords)
-
-      # Get keywords for this word
-      keyword_ids =
-        from(k in Keyword, where: k.word_id == ^target_word_id, select: k.id)
-        |> Repo.all()
-        |> Enum.shuffle()
-        |> Enum.take(5)
-
-      # Create possible words list (target + distractors)
-      distractor_ids =
-        (all_word_ids -- [target_word_id])
-        |> Enum.shuffle()
-        |> Enum.take(game.grid_size - 1)
-
-      possible_words_ids = Enum.shuffle([target_word_id | distractor_ids])
-
-      %Round{}
-      |> Round.changeset(%{
-        game_id: game.id,
-        word_id: target_word_id,
-        keyword_ids: keyword_ids,
-        possible_words_ids: possible_words_ids,
-        position: position,
-        state: "on_hold"
-      })
-      |> Repo.insert!()
+      generate_single_round(game, position, target_word_ids, all_word_ids)
     end)
+  end
+
+  defp generate_single_round(game, position, available_targets, all_word_ids) do
+    alias Mimimi.WortSchule
+
+    target_word_id = Enum.random(available_targets)
+
+    case WortSchule.get_complete_word(target_word_id) do
+      {:ok, word_data} ->
+        keyword_ids =
+          word_data.keywords
+          |> Enum.shuffle()
+          |> Enum.take(3)
+          |> Enum.map(& &1.id)
+
+        distractor_ids =
+          (all_word_ids -- [target_word_id])
+          |> Enum.shuffle()
+          |> Enum.take(game.grid_size - 1)
+
+        possible_words_ids = Enum.shuffle([target_word_id | distractor_ids])
+
+        %Round{}
+        |> Round.changeset(%{
+          game_id: game.id,
+          word_id: target_word_id,
+          keyword_ids: keyword_ids,
+          possible_words_ids: possible_words_ids,
+          position: position,
+          state: "on_hold"
+        })
+        |> Repo.insert!()
+
+      {:error, :not_found} ->
+        new_targets = available_targets -- [target_word_id]
+
+        if new_targets == [] do
+          raise "Failed to fetch keyword data for all available target words"
+        end
+
+        generate_single_round(game, position, new_targets, all_word_ids)
+    end
   end
 
   @doc """
@@ -618,5 +633,50 @@ defmodule Mimimi.Games do
   """
   def subscribe_to_active_games do
     Phoenix.PubSub.subscribe(Mimimi.PubSub, "active_games")
+  end
+
+  # GameServer functions
+
+  @doc """
+  Starts a GameServer for a game and begins the round timer.
+  """
+  def start_game_server(game_id, round_id, clues_interval) do
+    case DynamicSupervisor.start_child(
+           Mimimi.GameServerSupervisor,
+           {Mimimi.GameServer, game_id}
+         ) do
+      {:ok, _pid} ->
+        Mimimi.GameServer.start_round_timer(game_id, round_id, clues_interval)
+        :ok
+
+      {:error, {:already_started, _pid}} ->
+        # Server already running, just start the timer
+        Mimimi.GameServer.start_round_timer(game_id, round_id, clues_interval)
+        :ok
+
+      error ->
+        error
+    end
+  end
+
+  @doc """
+  Stops the GameServer for a game.
+  """
+  def stop_game_server(game_id) do
+    case Registry.lookup(Mimimi.GameRegistry, game_id) do
+      [{pid, _}] ->
+        DynamicSupervisor.terminate_child(Mimimi.GameServerSupervisor, pid)
+        :ok
+
+      [] ->
+        :ok
+    end
+  end
+
+  @doc """
+  Gets the current state of a game server.
+  """
+  def get_game_server_state(game_id) do
+    Mimimi.GameServer.get_state(game_id)
   end
 end

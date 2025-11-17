@@ -127,7 +127,25 @@ defmodule MimimiWeb.DashboardLive.Show do
   end
 
   def handle_info(:game_started, socket) do
-    {:noreply, push_navigate(socket, to: ~p"/dashboard/#{socket.assigns.game.id}")}
+    # Reload current round for display on host dashboard
+    game = Games.get_game_with_players(socket.assigns.game.id)
+    socket = assign(socket, :game, game)
+    socket = assign(socket, :mode, determine_mode(game, socket.assigns.current_user))
+
+    # Load current round if available
+    socket =
+      case Games.get_current_round(game.id) do
+        nil ->
+          socket
+
+        round ->
+          socket
+          |> assign(:current_round, round)
+          |> assign(:keywords_revealed, 0)
+          |> assign(:players_picked, MapSet.new())
+      end
+
+    {:noreply, socket}
   end
 
   def handle_info(:lobby_timeout, socket) do
@@ -135,6 +153,39 @@ defmodule MimimiWeb.DashboardLive.Show do
      socket
      |> put_flash(:error, "Das Spiel ist zu Ende. Es hat zu lange gedauert.")
      |> push_navigate(to: ~p"/")}
+  end
+
+  def handle_info({:keyword_revealed, revealed_count, _time_elapsed}, socket) do
+    {:noreply, assign(socket, :keywords_revealed, revealed_count)}
+  end
+
+  def handle_info({:player_picked, _player_id, _is_correct}, socket) do
+    # Reload players to show updated picks
+    game = Games.get_game_with_players(socket.assigns.game.id)
+    {:noreply, assign(socket, :game, game)}
+  end
+
+  def handle_info(:round_started, socket) do
+    # Reload current round
+    case Games.get_current_round(socket.assigns.game.id) do
+      nil ->
+        {:noreply, socket}
+
+      round ->
+        {:noreply,
+         socket
+         |> assign(:current_round, round)
+         |> assign(:keywords_revealed, 0)
+         |> assign(:players_picked, MapSet.new())}
+    end
+  end
+
+  def handle_info(:game_finished, socket) do
+    # Game is over, reload for game_over view
+    game = Games.get_game_with_players(socket.assigns.game.id)
+    socket = assign(socket, :game, game)
+    socket = assign(socket, :mode, determine_mode(game, socket.assigns.current_user))
+    {:noreply, socket}
   end
 
   @impl true
@@ -316,26 +367,126 @@ defmodule MimimiWeb.DashboardLive.Show do
     ~H"""
     <div class="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900">
       <div class="w-full max-w-4xl">
-        <div class="text-center mb-10">
-          <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 mb-4 shadow-lg">
-            <span class="text-4xl">🎯</span>
+        <%= if assigns[:current_round] do %>
+          <%!-- Round information --%>
+          <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 mb-4 shadow-lg">
+              <span class="text-4xl">🎯</span>
+            </div>
+            <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
+              Runde {@current_round.position} von {@game.rounds_count}
+            </h1>
+            <p class="text-lg text-gray-600 dark:text-gray-400">
+              Spielleiter Dashboard
+            </p>
           </div>
-          <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-            Spielleiter Dashboard
-          </h1>
-        </div>
 
-        <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
-          <div class="text-center py-8">
-            <div class="text-6xl mb-4">🎮</div>
-            <p class="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-              Das Spiel läuft...
-            </p>
-            <p class="text-sm text-gray-600 dark:text-gray-400">
-              (Volle Spielfunktionalität wird noch implementiert)
+          <%!-- Game status cards --%>
+          <div class="grid grid-cols-2 gap-4 mb-8">
+            <%!-- Players who picked --%>
+            <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-2xl p-5 shadow-xl border border-gray-200/50 dark:border-gray-700/50">
+              <p class="text-sm text-gray-600 dark:text-gray-400 mb-2 font-medium">
+                Gewählt:
+              </p>
+              <p class="text-3xl font-bold text-purple-600 dark:text-purple-400">
+                <span>Wird berechnet...</span>
+              </p>
+            </div>
+
+            <%!-- Keywords revealed --%>
+            <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-2xl p-5 shadow-xl border border-gray-200/50 dark:border-gray-700/50">
+              <p class="text-sm text-gray-600 dark:text-gray-400 mb-2 font-medium">
+                Hinweise:
+              </p>
+              <p class="text-3xl font-bold text-blue-600 dark:text-blue-400">
+                {min(assigns[:keywords_revealed] || 0, 3)} / 3
+              </p>
+            </div>
+          </div>
+
+          <%!-- Players with their avatars --%>
+          <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 mb-8">
+            <h2 class="text-lg font-semibold mb-6 text-gray-900 dark:text-white">
+              Spieler ({length(@game.players)})
+            </h2>
+
+            <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+              <%= for player <- @game.players do %>
+                <div class="relative flex flex-col items-center justify-center p-3 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl aspect-square transition-all duration-300 overflow-hidden group hover:border-purple-300 dark:hover:border-purple-600 hover:shadow-md">
+                  <div class="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
+                  </div>
+                  <span class="relative text-5xl sm:text-6xl">{player.avatar}</span>
+                  <%!-- Badge showing if picked --%>
+                  <div class="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-green-500 shadow-lg animate-pulse hidden">
+                  </div>
+                </div>
+              <% end %>
+            </div>
+
+            <p class="text-sm text-gray-600 dark:text-gray-400 text-center mt-6">
+              👆 Spieler-Avatar zeigt Status an
             </p>
           </div>
-        </div>
+
+          <%!-- Live leaderboard --%>
+          <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
+            <h2 class="text-lg font-semibold mb-6 text-gray-900 dark:text-white">
+              Aktuelle Punkte
+            </h2>
+
+            <div class="space-y-2">
+              <%= for {player, index} <- Enum.with_index(Enum.sort_by(@game.players, & &1.points, :desc)) do %>
+                <div class={[
+                  "relative flex items-center justify-between p-4 rounded-xl transition-all duration-300 overflow-hidden",
+                  if(index == 0,
+                    do:
+                      "bg-gradient-to-r from-yellow-400 to-orange-400 text-white shadow-lg shadow-yellow-500/30",
+                    else: "bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700"
+                  )
+                ]}>
+                  <div class="relative flex items-center gap-4">
+                    <span class="text-2xl font-bold">{index + 1}.</span>
+                    <span class="text-4xl">{player.avatar}</span>
+                    <span class={[
+                      "font-semibold",
+                      if(index == 0,
+                        do: "text-white",
+                        else: "text-gray-900 dark:text-white"
+                      )
+                    ]}>
+                      {player.points} Punkte
+                    </span>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        <% else %>
+          <div class="text-center mb-10">
+            <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 mb-4 shadow-lg animate-pulse">
+              <span class="text-4xl">⏳</span>
+            </div>
+            <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
+              Spielleiter Dashboard
+            </h1>
+            <p class="text-lg text-gray-600 dark:text-gray-400">
+              Spiel wird vorbereitet...
+            </p>
+          </div>
+
+          <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
+            <div class="text-center py-8">
+              <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 dark:border-purple-400 mx-auto mb-4">
+              </div>
+              <p class="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                Runden werden generiert...
+              </p>
+              <p class="text-sm text-gray-600 dark:text-gray-400">
+                Bitte warten Sie einen Moment
+              </p>
+            </div>
+          </div>
+        <% end %>
       </div>
     </div>
     """

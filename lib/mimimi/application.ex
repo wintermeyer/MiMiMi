@@ -16,6 +16,10 @@ defmodule Mimimi.Application do
       Mimimi.WortSchuleRepo,
       {DNSCluster, query: Application.get_env(:mimimi, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Mimimi.PubSub},
+      # Registry for GameServers
+      {Registry, keys: :unique, name: Mimimi.GameRegistry},
+      # Dynamic supervisor for game server instances
+      {DynamicSupervisor, name: Mimimi.GameServerSupervisor, strategy: :one_for_one},
       # WortSchule image URL cache (ETS-based, 24-hour TTL)
       Mimimi.WortSchule.ImageUrlCache,
       # Start a worker by calling: Mimimi.Worker.start_link(arg)
