@@ -122,6 +122,70 @@ defmodule Mimimi.GamesTest do
     end
   end
 
+  describe "word types" do
+    setup do
+      {:ok, host_user} = Accounts.get_or_create_user_by_session("host_session_id")
+      %{host_user: host_user}
+    end
+
+    test "creates game with default word types", %{host_user: host_user} do
+      {:ok, game} =
+        Games.create_game(host_user.id, %{
+          rounds_count: 3,
+          clues_interval: 9,
+          grid_size: 9
+        })
+
+      assert game.word_types == ["Noun"]
+    end
+
+    test "creates game with custom word types", %{host_user: host_user} do
+      {:ok, game} =
+        Games.create_game(host_user.id, %{
+          rounds_count: 3,
+          clues_interval: 9,
+          grid_size: 9,
+          word_types: ["Noun", "Verb"]
+        })
+
+      assert game.word_types == ["Noun", "Verb"]
+    end
+
+    test "rejects game with empty word types", %{host_user: host_user} do
+      assert_raise Ecto.InvalidChangesetError, fn ->
+        Games.create_game(host_user.id, %{
+          rounds_count: 3,
+          clues_interval: 9,
+          grid_size: 9,
+          word_types: []
+        })
+      end
+    end
+
+    test "rejects game with invalid word type", %{host_user: host_user} do
+      assert_raise Ecto.InvalidChangesetError, fn ->
+        Games.create_game(host_user.id, %{
+          rounds_count: 3,
+          clues_interval: 9,
+          grid_size: 9,
+          word_types: ["InvalidType"]
+        })
+      end
+    end
+
+    test "accepts multiple valid word types", %{host_user: host_user} do
+      {:ok, game} =
+        Games.create_game(host_user.id, %{
+          rounds_count: 3,
+          clues_interval: 9,
+          grid_size: 9,
+          word_types: ["Noun", "Verb", "Adjective", "Adverb", "Other"]
+        })
+
+      assert length(game.word_types) == 5
+    end
+  end
+
   describe "short code expiration" do
     setup do
       {:ok, host_user} = Accounts.get_or_create_user_by_session("host_session_id")

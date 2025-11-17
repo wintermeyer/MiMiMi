@@ -84,6 +84,9 @@ defmodule Mimimi.GameServer do
 
     Logger.info("GameServer: Starting round timer for game #{state.game_id}, round #{round_id}")
 
+    # Immediately reveal the first keyword
+    Games.broadcast_to_game(state.game_id, {:keyword_revealed, 1, 0})
+
     {:noreply,
      %{
        state
@@ -91,7 +94,7 @@ defmodule Mimimi.GameServer do
          clues_interval: clues_interval_seconds,
          elapsed_seconds: 0,
          timer_ref: timer_ref,
-         keywords_revealed: 0,
+         keywords_revealed: 1,
          round_state: :playing
      }}
   end
@@ -125,28 +128,23 @@ defmodule Mimimi.GameServer do
       rem(new_elapsed, state.clues_interval) == 0 and
         new_elapsed > 0
 
-    if should_reveal do
-      # Broadcast keyword reveal
-      new_revealed = state.keywords_revealed + 1
-      Games.broadcast_to_game(state.game_id, {:keyword_revealed, new_revealed, new_elapsed})
-      Logger.debug("GameServer: Revealed keyword #{new_revealed} for game #{state.game_id}")
+    # Always broadcast the current time and keyword count (for progress bar)
+    new_revealed =
+      if should_reveal, do: state.keywords_revealed + 1, else: state.keywords_revealed
 
-      {:noreply,
-       %{
-         state
-         | elapsed_seconds: new_elapsed,
-           keywords_revealed: new_revealed,
-           timer_ref: Process.send_after(self(), :tick, 1000)
-       }}
-    else
-      # Continue ticking
-      {:noreply,
-       %{
-         state
-         | elapsed_seconds: new_elapsed,
-           timer_ref: Process.send_after(self(), :tick, 1000)
-       }}
+    Games.broadcast_to_game(state.game_id, {:keyword_revealed, new_revealed, new_elapsed})
+
+    if should_reveal do
+      Logger.debug("GameServer: Revealed keyword #{new_revealed} for game #{state.game_id}")
     end
+
+    {:noreply,
+     %{
+       state
+       | elapsed_seconds: new_elapsed,
+         keywords_revealed: new_revealed,
+         timer_ref: Process.send_after(self(), :tick, 1000)
+     }}
   end
 
   def terminate(reason, state) do

@@ -230,22 +230,35 @@ defmodule Mimimi.Games do
   Starts a game and generates rounds.
   """
   def start_game(%Game{} = game) do
-    Repo.transaction(fn ->
-      # Update game state
-      game =
+    result =
+      Repo.transaction(fn ->
+        # Update game state
+        game =
+          game
+          |> Game.changeset(%{state: "game_running", started_at: DateTime.utc_now()})
+          |> Repo.update!()
+
+        # Generate rounds
+        generate_rounds(game)
+
+        # Activate the first round
+        case advance_to_next_round(game.id) do
+          {:ok, _round} -> :ok
+          {:error, _} -> :ok
+        end
+
         game
-        |> Game.changeset(%{state: "game_running", started_at: DateTime.utc_now()})
-        |> Repo.update!()
+      end)
 
-      # Generate rounds
-      generate_rounds(game)
+    case result do
+      {:ok, game} ->
+        broadcast_game_count_changed()
+        broadcast_to_game(game.id, :round_started)
+        {:ok, game}
 
-      game
-    end)
-    |> tap(fn
-      {:ok, _game} -> broadcast_game_count_changed()
-      _ -> :ok
-    end)
+      error ->
+        error
+    end
   end
 
   @doc """
@@ -430,22 +443,25 @@ defmodule Mimimi.Games do
   @doc """
   Generates all rounds for a game using WortSchule data.
   Fetches words with images and keywords from the external WortSchule database.
+  Filters words by the configured word types.
   """
   def generate_rounds(%Game{} = game) do
     alias Mimimi.WortSchule
 
-    # Get words with at least 3 keywords for target words
-    target_word_ids = WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 3)
+    # Get words with at least 3 keywords for target words, filtered by word types
+    target_word_ids =
+      WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 3, types: game.word_types)
 
     if length(target_word_ids) < game.rounds_count do
-      raise "Not enough words with 3+ keywords to generate #{game.rounds_count} rounds"
+      raise "Not enough words with 3+ keywords to generate #{game.rounds_count} rounds for word types: #{Enum.join(game.word_types, ", ")}"
     end
 
-    # Get all words with at least 1 keyword for distractors
-    all_word_ids = WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 1)
+    # Get all words with at least 1 keyword for distractors, filtered by word types
+    all_word_ids =
+      WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 1, types: game.word_types)
 
     if length(all_word_ids) < game.rounds_count * (game.grid_size - 1) do
-      raise "Not enough words available to generate rounds with grid size #{game.grid_size}"
+      raise "Not enough words available to generate rounds with grid size #{game.grid_size} for word types: #{Enum.join(game.word_types, ", ")}"
     end
 
     # Generate each round
@@ -506,10 +522,6 @@ defmodule Mimimi.Games do
       limit: 1
     )
     |> Repo.one()
-    |> case do
-      nil -> nil
-      round -> Repo.preload(round, :word)
-    end
   end
 
   @doc """

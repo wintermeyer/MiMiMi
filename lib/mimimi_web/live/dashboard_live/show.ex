@@ -56,6 +56,22 @@ defmodule MimimiWeb.DashboardLive.Show do
         socket
       end
 
+    socket =
+      if socket.assigns.mode == :host_dashboard do
+        case Games.get_current_round(game.id) do
+          nil ->
+            socket
+
+          round ->
+            socket
+            |> assign(:current_round, round)
+            |> assign(:keywords_revealed, 0)
+            |> assign(:players_picked, MapSet.new())
+        end
+      else
+        socket
+      end
+
     {:ok, socket}
   end
 

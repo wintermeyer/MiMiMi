@@ -112,6 +112,7 @@ defmodule Mimimi.WortSchule do
   ## Options
 
     * `:min_keywords` - Minimum number of keywords required (default: 1)
+    * `:types` - List of word types to filter by (e.g., ["Noun", "Verb"]) (default: all types)
 
   ## Examples
 
@@ -120,23 +121,37 @@ defmodule Mimimi.WortSchule do
 
       iex> WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 2)
       [123, 789]
+
+      iex> WortSchule.get_word_ids_with_keywords_and_images(types: ["Noun"])
+      [123, 456]
   """
   def get_word_ids_with_keywords_and_images(opts \\ []) do
     try do
       min_keywords = Keyword.get(opts, :min_keywords, 1)
+      types = Keyword.get(opts, :types)
 
-      from(w in Word,
-        join: att in "active_storage_attachments",
-        on: att.record_id == w.id and att.record_type == "Word" and att.name == "image",
-        join: k in "keywords",
-        on: k.word_id == w.id,
-        join: kw in Word,
-        on: kw.id == k.keyword_id,
-        group_by: [w.id, w.name],
-        having: count(k.keyword_id, :distinct) >= ^min_keywords,
-        order_by: w.name,
-        select: {w.id, w.name}
-      )
+      query =
+        from(w in Word,
+          join: att in "active_storage_attachments",
+          on: att.record_id == w.id and att.record_type == "Word" and att.name == "image",
+          join: k in "keywords",
+          on: k.word_id == w.id,
+          join: kw in Word,
+          on: kw.id == k.keyword_id,
+          group_by: [w.id, w.name],
+          having: count(k.keyword_id, :distinct) >= ^min_keywords,
+          order_by: w.name,
+          select: {w.id, w.name}
+        )
+
+      query =
+        if types && types != [] do
+          from(w in query, where: w.type in ^types)
+        else
+          query
+        end
+
+      query
       |> Repo.all()
       |> Enum.map(fn {id, _name} -> id end)
     rescue
