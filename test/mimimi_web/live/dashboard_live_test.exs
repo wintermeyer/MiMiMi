@@ -9,10 +9,10 @@ defmodule MimimiWeb.DashboardLiveTest do
       # Create host user
       {:ok, host} = Accounts.get_or_create_user_by_session("host_session")
 
-      # Create a game
+      # Create a game with minimal rounds to avoid test database constraints
       {:ok, game} =
         Games.create_game(host.id, %{
-          rounds_count: 3,
+          rounds_count: 1,
           clues_interval: 9,
           grid_size: 9
         })
