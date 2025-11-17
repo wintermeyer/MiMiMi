@@ -1,4 +1,10 @@
 defmodule Mimimi.GameCleanupWorker do
+  @moduledoc """
+  A GenServer worker that periodically cleans up timed-out game lobbies.
+
+  Runs every 5 minutes to check for lobbies in "waiting_for_players" state
+  that have exceeded the 15-minute timeout threshold.
+  """
   use GenServer
   require Logger
   alias Mimimi.Games

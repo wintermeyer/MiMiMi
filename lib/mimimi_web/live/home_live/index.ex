@@ -9,29 +9,30 @@ defmodule MimimiWeb.HomeLive.Index do
     end
 
     active_game_id = Map.get(session, "active_game_id")
+    handle_active_game(socket, active_game_id, session)
+  end
 
-    if active_game_id do
-      case Games.get_game(active_game_id) do
-        %{state: state} = game when state in ["waiting_for_players", "game_running"] ->
-          player = Games.get_player_by_game_and_user(game.id, socket.assigns.current_user.id)
-          is_host = game.host_user_id == socket.assigns.current_user.id
+  defp handle_active_game(socket, nil, session), do: mount_home_page(socket, session)
 
-          cond do
-            is_host ->
-              {:ok, push_navigate(socket, to: ~p"/dashboard/#{game.id}")}
+  defp handle_active_game(socket, active_game_id, session) do
+    case Games.get_game(active_game_id) do
+      %{state: state} = game when state in ["waiting_for_players", "game_running"] ->
+        redirect_to_active_game(socket, game, session)
 
-            player ->
-              {:ok, push_navigate(socket, to: ~p"/games/#{game.id}/current")}
+      _ ->
+        mount_home_page(socket, session)
+    end
+  end
 
-            true ->
-              mount_home_page(socket, session)
-          end
+  defp redirect_to_active_game(socket, game, session) do
+    user_id = socket.assigns.current_user.id
+    player = Games.get_player_by_game_and_user(game.id, user_id)
+    is_host = game.host_user_id == user_id
 
-        _ ->
-          mount_home_page(socket, session)
-      end
-    else
-      mount_home_page(socket, session)
+    cond do
+      is_host -> {:ok, push_navigate(socket, to: ~p"/dashboard/#{game.id}")}
+      player -> {:ok, push_navigate(socket, to: ~p"/games/#{game.id}/current")}
+      true -> mount_home_page(socket, session)
     end
   end
 
