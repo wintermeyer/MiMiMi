@@ -473,17 +473,17 @@ defmodule MimimiWeb.DashboardLive.Show do
   defp group_players_by_rank(players) do
     players
     |> Enum.sort_by(& &1.points, :desc)
-    |> Enum.reduce({[], 1, nil}, fn player, {acc, next_rank, last_points} ->
-      rank =
+    |> Enum.reduce({[], 1, nil}, fn player, {acc, current_rank, last_points} ->
+      {rank, next_rank} =
         if last_points == player.points do
-          # Same points as previous player, use same rank
-          elem(List.last(acc), 0)
+          # Same points as previous player, use same rank but don't increment
+          {elem(List.last(acc), 0), current_rank}
         else
-          # Different points, use next sequential rank
-          next_rank
+          # Different points, use current rank and increment for next
+          {current_rank, current_rank + 1}
         end
 
-      {acc ++ [{rank, player}], next_rank + 1, player.points}
+      {acc ++ [{rank, player}], next_rank, player.points}
     end)
     |> elem(0)
     |> Enum.group_by(fn {rank, _player} -> rank end, fn {_rank, player} -> player end)
