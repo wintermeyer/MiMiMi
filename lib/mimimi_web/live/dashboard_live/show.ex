@@ -120,6 +120,7 @@ defmodule MimimiWeb.DashboardLive.Show do
       round ->
         analytics = Games.get_round_analytics(round.id)
         keywords = fetch_keywords(round.keyword_ids)
+        possible_words = fetch_possible_words(round.possible_words_ids)
         game_stats = Games.get_game_performance_stats(game.id)
 
         if connected?(socket) && round.state == "playing" do
@@ -132,6 +133,7 @@ defmodule MimimiWeb.DashboardLive.Show do
         |> assign(:time_elapsed, 0)
         |> assign(:round_analytics, analytics)
         |> assign(:keywords, keywords)
+        |> assign(:possible_words, possible_words)
         |> assign(:game_stats, game_stats)
     end
   end
@@ -179,6 +181,20 @@ defmodule MimimiWeb.DashboardLive.Show do
 
         nil ->
           %{id: kw_id, name: "?"}
+      end
+    end)
+  end
+
+  defp fetch_possible_words(word_ids) do
+    alias Mimimi.WortSchule
+
+    Enum.map(word_ids, fn word_id ->
+      case WortSchule.get_complete_word(word_id) do
+        {:ok, data} ->
+          %{id: data.id, name: data.name, image_url: data.image_url}
+
+        {:error, _} ->
+          %{id: word_id, name: "?", image_url: nil}
       end
     end)
   end
@@ -245,6 +261,7 @@ defmodule MimimiWeb.DashboardLive.Show do
         round ->
           analytics = Games.get_round_analytics(round.id)
           keywords = fetch_keywords(round.keyword_ids)
+          possible_words = fetch_possible_words(round.possible_words_ids)
           game_stats = Games.get_game_performance_stats(game.id)
 
           Games.start_game_server(game.id, round.id, game.clues_interval)
@@ -255,6 +272,7 @@ defmodule MimimiWeb.DashboardLive.Show do
           |> assign(:time_elapsed, 0)
           |> assign(:round_analytics, analytics)
           |> assign(:keywords, keywords)
+          |> assign(:possible_words, possible_words)
           |> assign(:game_stats, game_stats)
       end
 
@@ -301,6 +319,7 @@ defmodule MimimiWeb.DashboardLive.Show do
       round ->
         analytics = Games.get_round_analytics(round.id)
         keywords = fetch_keywords(round.keyword_ids)
+        possible_words = fetch_possible_words(round.possible_words_ids)
         game_stats = Games.get_game_performance_stats(socket.assigns.game.id)
 
         {:noreply,
@@ -310,6 +329,7 @@ defmodule MimimiWeb.DashboardLive.Show do
          |> assign(:time_elapsed, 0)
          |> assign(:round_analytics, analytics)
          |> assign(:keywords, keywords)
+         |> assign(:possible_words, possible_words)
          |> assign(:game_stats, game_stats)}
     end
   end
@@ -433,6 +453,23 @@ defmodule MimimiWeb.DashboardLive.Show do
     |> Map.keys()
     |> Enum.map(fn "player_" <> user_id -> user_id end)
     |> MapSet.new()
+  end
+
+  defp calculate_word_picks(round_analytics) do
+    round_analytics.players_picked
+    |> Enum.reduce(%{}, fn pick, acc ->
+      word_id = pick.picked_word.id
+      stats = Map.get(acc, word_id, %{correct: 0, wrong: 0})
+
+      updated_stats =
+        if pick.is_correct do
+          %{stats | correct: stats.correct + 1}
+        else
+          %{stats | wrong: stats.wrong + 1}
+        end
+
+      Map.put(acc, word_id, updated_stats)
+    end)
   end
 
   @impl true
@@ -617,53 +654,10 @@ defmodule MimimiWeb.DashboardLive.Show do
             </p>
           </div>
 
-          <%!-- Game status cards --%>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <%!-- Players who picked --%>
-            <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-2xl p-5 shadow-xl border border-gray-200/50 dark:border-gray-700/50">
-              <p class="text-sm text-gray-600 dark:text-gray-400 mb-2 font-medium">
-                Gewählt:
-              </p>
-              <p class="text-3xl font-bold text-purple-600 dark:text-purple-400">
-                {@round_analytics.picked_count} / {@round_analytics.total_players}
-              </p>
-            </div>
-
-            <%!-- Correct answers --%>
-            <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-2xl p-5 shadow-xl border border-gray-200/50 dark:border-gray-700/50">
-              <p class="text-sm text-gray-600 dark:text-gray-400 mb-2 font-medium">
-                Richtig:
-              </p>
-              <p class="text-3xl font-bold text-green-600 dark:text-green-400">
-                {@round_analytics.correct_count}
-              </p>
-            </div>
-
-            <%!-- Wrong answers --%>
-            <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-2xl p-5 shadow-xl border border-gray-200/50 dark:border-gray-700/50">
-              <p class="text-sm text-gray-600 dark:text-gray-400 mb-2 font-medium">
-                Falsch:
-              </p>
-              <p class="text-3xl font-bold text-red-600 dark:text-red-400">
-                {@round_analytics.wrong_count}
-              </p>
-            </div>
-
-            <%!-- Keywords revealed --%>
-            <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-2xl p-5 shadow-xl border border-gray-200/50 dark:border-gray-700/50">
-              <p class="text-sm text-gray-600 dark:text-gray-400 mb-2 font-medium">
-                Hinweise:
-              </p>
-              <p class="text-3xl font-bold text-blue-600 dark:text-blue-400">
-                {min(assigns[:keywords_revealed] || 0, 3)} / 3
-              </p>
-            </div>
-          </div>
-
-          <%!-- Keywords display --%>
+          <%!-- Keywords display with progress bar --%>
           <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 mb-8">
             <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
-              Aktuelle Schlüsselwörter
+              Schlüsselwörter
             </h2>
             <div class="flex flex-wrap gap-3">
               <%= for {keyword, index} <- Enum.with_index(@keywords, 1) do %>
@@ -717,6 +711,60 @@ defmodule MimimiWeb.DashboardLive.Show do
                   <span class="relative z-10">
                     {if is_revealed || is_current, do: keyword.name, else: "???"}
                   </span>
+                </div>
+              <% end %>
+            </div>
+          </div>
+
+          <%!-- Word Choices Grid --%>
+          <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-6 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 mb-8">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Bilder zur Auswahl
+            </h3>
+            <% word_picks = calculate_word_picks(@round_analytics) %>
+            <div class="grid grid-cols-3 gap-3">
+              <%= for word <- @possible_words do %>
+                <% picks = Map.get(word_picks, word.id, %{correct: 0, wrong: 0}) %>
+                <div class="relative aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 group hover:border-purple-300 dark:hover:border-purple-600 transition-all duration-300">
+                  <%= if word.image_url do %>
+                    <img
+                      src={word.image_url}
+                      alt={word.name}
+                      class="w-full h-full object-cover"
+                    />
+                    <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                      <p class="text-white text-sm font-semibold text-center truncate">
+                        {word.name}
+                      </p>
+                    </div>
+                  <% else %>
+                    <div class="w-full h-full flex flex-col items-center justify-center">
+                      <span class="text-4xl mb-2">🖼️</span>
+                      <p class="text-xs text-gray-600 dark:text-gray-400 font-semibold text-center px-2">
+                        {word.name}
+                      </p>
+                    </div>
+                  <% end %>
+                  <div class="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
+                  </div>
+
+                  <%!-- Pick indicators (dots) --%>
+                  <%= if picks.correct > 0 || picks.wrong > 0 do %>
+                    <div class="absolute top-2 right-2 flex flex-col gap-1">
+                      <%= if picks.correct > 0 do %>
+                        <div class="flex items-center gap-1 bg-green-500 rounded-full px-2 py-1 shadow-lg">
+                          <div class="w-2 h-2 bg-white rounded-full"></div>
+                          <span class="text-white text-xs font-bold">{picks.correct}</span>
+                        </div>
+                      <% end %>
+                      <%= if picks.wrong > 0 do %>
+                        <div class="flex items-center gap-1 bg-red-500 rounded-full px-2 py-1 shadow-lg">
+                          <div class="w-2 h-2 bg-white rounded-full"></div>
+                          <span class="text-white text-xs font-bold">{picks.wrong}</span>
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
                 </div>
               <% end %>
             </div>
