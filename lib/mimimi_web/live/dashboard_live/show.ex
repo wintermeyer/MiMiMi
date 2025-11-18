@@ -469,20 +469,21 @@ defmodule MimimiWeb.DashboardLive.Show do
 
   # Groups players by rank, handling ties properly.
   # Returns a list of {rank, [players]} tuples where players with the same points share the same rank.
+  # Ranks increment by 1 regardless of ties (e.g., 1, 2, 3 even if multiple players tie for 1st).
   defp group_players_by_rank(players) do
     players
     |> Enum.sort_by(& &1.points, :desc)
-    |> Enum.reduce({[], 1, nil}, fn player, {acc, current_rank, last_points} ->
+    |> Enum.reduce({[], 1, nil}, fn player, {acc, next_rank, last_points} ->
       rank =
         if last_points == player.points do
           # Same points as previous player, use same rank
-          current_rank
+          elem(List.last(acc), 0)
         else
-          # Different points, calculate new rank based on position
-          length(acc) + 1
+          # Different points, use next sequential rank
+          next_rank
         end
 
-      {acc ++ [{rank, player}], rank, player.points}
+      {acc ++ [{rank, player}], next_rank + 1, player.points}
     end)
     |> elem(0)
     |> Enum.group_by(fn {rank, _player} -> rank end, fn {_rank, player} -> player end)
