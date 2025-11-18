@@ -8,7 +8,8 @@ config :mimimi, Mimimi.Repo,
   database: "mimimi_dev",
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
-  pool_size: 10
+  pool_size: 10,
+  log: false
 
 # Configure wort.schule database (read-only)
 config :mimimi, Mimimi.WortSchuleRepo,
@@ -18,7 +19,8 @@ config :mimimi, Mimimi.WortSchuleRepo,
   database: "wortschule_development",
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
-  pool_size: 10
+  pool_size: 10,
+  log: false
 
 # For development, we disable any cache and enable
 # debugging and code reloading.

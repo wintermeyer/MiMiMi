@@ -91,19 +91,44 @@ defmodule MimimiWeb.GameLive.Play do
         keyword_ids = round.keyword_ids
         keywords = fetch_keywords(keyword_ids)
 
+        # Sync with GameServer if round is already playing
+        {initial_keywords_revealed, initial_time_elapsed} =
+          get_initial_round_state(game_id, round.state)
+
+        # Calculate which keywords should be shown based on server state
+        keywords_shown = min(initial_keywords_revealed, length(keywords))
+        revealed_keywords = Enum.take(keywords, keywords_shown)
+
         socket
         |> assign(:current_round, round)
         |> assign(:possible_words, possible_words)
         |> assign(:keywords, keywords)
-        |> assign(:keywords_revealed, 0)
-        |> assign(:revealed_keywords, [])
-        |> assign(:time_elapsed, 0)
+        |> assign(:keywords_revealed, keywords_shown)
+        |> assign(:revealed_keywords, revealed_keywords)
+        |> assign(:time_elapsed, initial_time_elapsed)
         |> assign(:has_picked, false)
         |> assign(:pick_result, nil)
         |> assign(:waiting_for_others, false)
         |> assign(:players_picked, MapSet.new())
     end
   end
+
+  defp get_initial_round_state(game_id, round_state) when round_state == "playing" do
+    try do
+      case Games.get_game_server_state(game_id) do
+        {:ok, server_state} ->
+          {server_state.keywords_revealed, server_state.elapsed_seconds}
+
+        _ ->
+          {0, 0}
+      end
+    catch
+      # GameServer might not be running yet, default to initial state
+      :exit, _ -> {0, 0}
+    end
+  end
+
+  defp get_initial_round_state(_game_id, _round_state), do: {0, 0}
 
   defp fetch_words_with_images(word_ids) do
     Enum.map(word_ids, fn word_id ->
@@ -261,6 +286,13 @@ defmodule MimimiWeb.GameLive.Play do
      socket
      |> put_flash(:error, "Der Spielleiter hat die Verbindung getrennt. Das Spiel wurde beendet.")
      |> push_navigate(to: ~p"/")}
+  end
+
+  def handle_info(:game_stopped_by_host, socket) do
+    {:noreply,
+     socket
+     |> put_flash(:info, "Das Spiel wurde vom Spielleiter beendet.")
+     |> push_navigate(to: ~p"/dashboard/#{socket.assigns.game.id}")}
   end
 
   @impl true

@@ -554,4 +554,55 @@ defmodule Mimimi.GamesTest do
       assert hd(stats.player_stats).accuracy >= List.last(stats.player_stats).accuracy
     end
   end
+
+  describe "stop_game_manually/1" do
+    setup do
+      {:ok, host_user} = Accounts.get_or_create_user_by_session("host_session_id")
+
+      {:ok, game} =
+        Games.create_game(host_user.id, %{
+          rounds_count: 3,
+          clues_interval: 9,
+          grid_size: 9
+        })
+
+      %{host_user: host_user, game: game}
+    end
+
+    test "stops a running game and sets state to game_over", %{game: game} do
+      # Update game to running state
+      {:ok, running_game} = Games.update_game_state(game, "game_running")
+      assert running_game.state == "game_running"
+
+      # Stop the game manually
+      {:ok, stopped_game} = Games.stop_game_manually(game.id)
+
+      assert stopped_game.state == "game_over"
+    end
+
+    test "stops a waiting game and sets state to game_over", %{game: game} do
+      assert game.state == "waiting_for_players"
+
+      # Stop the game manually
+      {:ok, stopped_game} = Games.stop_game_manually(game.id)
+
+      assert stopped_game.state == "game_over"
+    end
+
+    test "returns error for non-existent game" do
+      non_existent_id = Ecto.UUID.generate()
+      assert {:error, :not_found} = Games.stop_game_manually(non_existent_id)
+    end
+
+    test "broadcasts game_stopped_by_host message", %{game: game} do
+      # Subscribe to game events
+      Games.subscribe_to_game(game.id)
+
+      # Stop the game
+      {:ok, _stopped_game} = Games.stop_game_manually(game.id)
+
+      # Should receive the broadcast
+      assert_receive :game_stopped_by_host
+    end
+  end
 end

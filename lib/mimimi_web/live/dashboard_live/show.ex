@@ -102,6 +102,13 @@ defmodule MimimiWeb.DashboardLive.Show do
         socket
       end
 
+    socket =
+      if socket.assigns.mode == :game_over do
+        load_game_over_data(socket, game)
+      else
+        socket
+      end
+
     {:ok, socket}
   end
 
@@ -149,6 +156,11 @@ defmodule MimimiWeb.DashboardLive.Show do
           :game_over
         end
     end
+  end
+
+  defp load_game_over_data(socket, game) do
+    correct_picks_by_player = Games.get_correct_picks_by_player(game.id)
+    assign(socket, :correct_picks_by_player, correct_picks_by_player)
   end
 
   defp schedule_lobby_tick(socket) do
@@ -309,11 +321,43 @@ defmodule MimimiWeb.DashboardLive.Show do
     # Determine role based on whether user is host
     role = if game.host_user_id == socket.assigns.current_user.id, do: :host, else: :player
 
-    socket
-    |> assign(:game, game)
-    |> assign(:players, game.players)
-    |> assign(:mode, determine_mode(game, socket.assigns.current_user, role))
-    |> then(&{:noreply, &1})
+    socket =
+      socket
+      |> assign(:game, game)
+      |> assign(:players, game.players)
+      |> assign(:mode, determine_mode(game, socket.assigns.current_user, role))
+
+    socket =
+      if socket.assigns.mode == :game_over do
+        load_game_over_data(socket, game)
+      else
+        socket
+      end
+
+    {:noreply, socket}
+  end
+
+  def handle_info(:game_stopped_by_host, socket) do
+    # Game was manually stopped by host, reload for game_over view
+    game = Games.get_game_with_players(socket.assigns.game.id)
+
+    # Determine role based on whether user is host
+    role = if game.host_user_id == socket.assigns.current_user.id, do: :host, else: :player
+
+    socket =
+      socket
+      |> assign(:game, game)
+      |> assign(:players, game.players)
+      |> assign(:mode, determine_mode(game, socket.assigns.current_user, role))
+
+    socket =
+      if socket.assigns.mode == :game_over do
+        load_game_over_data(socket, game)
+      else
+        socket
+      end
+
+    {:noreply, socket}
   end
 
   def handle_info(
@@ -355,6 +399,24 @@ defmodule MimimiWeb.DashboardLive.Show do
   end
 
   def handle_event("copy_link", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("stop_game", _params, socket) do
+    game = socket.assigns.game
+
+    case Games.stop_game_manually(game.id) do
+      {:ok, _game} ->
+        # The game_stopped_by_host broadcast will be handled by handle_info
+        {:noreply, socket}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Fehler beim Stoppen des Spiels")}
+    end
+  end
+
+  def handle_event("stop_modal_propagation", _params, socket) do
+    # Prevent modal from closing when clicking inside it
     {:noreply, socket}
   end
 
@@ -846,6 +908,62 @@ defmodule MimimiWeb.DashboardLive.Show do
               <% end %>
             </div>
           </div>
+
+          <%!-- Stop Game Button --%>
+          <div class="mt-6">
+            <button
+              type="button"
+              phx-click={JS.show(to: "#stop-game-modal")}
+              class="relative w-full py-4 bg-gradient-to-r from-red-600 via-red-500 to-orange-500 hover:from-red-700 hover:via-red-600 hover:to-orange-600 text-white rounded-2xl shadow-xl shadow-red-500/30 hover:shadow-2xl hover:shadow-red-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 font-semibold overflow-hidden group"
+            >
+              <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700">
+              </div>
+              <span class="relative">⏹️ Spiel jetzt beenden</span>
+            </button>
+          </div>
+
+          <%!-- Stop Game Confirmation Modal --%>
+          <div
+            id="stop-game-modal"
+            class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+            phx-click={JS.hide(to: "#stop-game-modal")}
+          >
+            <div
+              class="relative w-full max-w-md backdrop-blur-xl bg-white/90 dark:bg-gray-800/90 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50"
+              phx-click="stop_modal_propagation"
+            >
+              <div class="text-center mb-6">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-red-500 to-orange-500 mb-4 shadow-lg">
+                  <span class="text-3xl">⚠️</span>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                  Spiel wirklich beenden?
+                </h2>
+                <p class="text-gray-600 dark:text-gray-400">
+                  Das Spiel wird sofort beendet und alle Spieler sehen die finale Rangliste.
+                </p>
+              </div>
+
+              <div class="grid grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  phx-click={JS.hide(to: "#stop-game-modal")}
+                  class="relative py-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-xl font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="button"
+                  phx-click={JS.push("stop_game") |> JS.hide(to: "#stop-game-modal")}
+                  class="relative py-3 bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-700 hover:to-orange-600 text-white rounded-xl shadow-lg shadow-red-500/30 hover:shadow-xl hover:shadow-red-500/40 font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] overflow-hidden group"
+                >
+                  <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700">
+                  </div>
+                  <span class="relative">Ja, beenden</span>
+                </button>
+              </div>
+            </div>
+          </div>
         <% else %>
           <div class="text-center mb-10">
             <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 mb-4 shadow-lg animate-pulse">
@@ -925,6 +1043,70 @@ defmodule MimimiWeb.DashboardLive.Show do
             <% end %>
           </div>
         </div>
+
+        <%!-- Correct picks section --%>
+        <%= if @correct_picks_by_player && map_size(@correct_picks_by_player) > 0 do %>
+          <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 mb-6 correct-picks">
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">
+              Richtig geraten! 🎉
+            </h2>
+
+            <div class="space-y-8">
+              <%= for player <- Enum.sort_by(@players, & &1.points, :desc) do %>
+                <% correct_words = Map.get(@correct_picks_by_player, player.id, []) %>
+                <%= if correct_words != [] do %>
+                  <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 p-6 border-2 border-purple-200 dark:border-purple-700">
+                    <%!-- Player header --%>
+                    <div class="flex items-center gap-4 mb-4">
+                      <span class="text-5xl">{player.avatar}</span>
+                      <div>
+                        <p class="font-bold text-lg text-gray-900 dark:text-white">
+                          {length(correct_words)} {if length(correct_words) == 1,
+                            do: "Wort",
+                            else: "Wörter"} richtig
+                        </p>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                          {player.points} {if player.points == 1, do: "Punkt", else: "Punkte"} gesammelt
+                        </p>
+                      </div>
+                    </div>
+
+                    <%!-- Word images grid --%>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                      <%= for word <- correct_words do %>
+                        <div class="relative group">
+                          <div class="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl opacity-0 group-hover:opacity-20 transition-opacity duration-300">
+                          </div>
+                          <div class="relative aspect-square rounded-xl overflow-hidden bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 group-hover:border-purple-400 dark:group-hover:border-purple-500 transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl">
+                            <%= if word.image_url do %>
+                              <img
+                                src={word.image_url}
+                                alt={word.name}
+                                class="w-full h-full object-cover"
+                              />
+                              <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                                <p class="text-white text-xs font-semibold text-center truncate">
+                                  {word.name}
+                                </p>
+                              </div>
+                            <% else %>
+                              <div class="w-full h-full flex flex-col items-center justify-center">
+                                <span class="text-4xl mb-2">🖼️</span>
+                                <p class="text-xs text-gray-600 dark:text-gray-400 font-semibold text-center px-2">
+                                  {word.name}
+                                </p>
+                              </div>
+                            <% end %>
+                          </div>
+                        </div>
+                      <% end %>
+                    </div>
+                  </div>
+                <% end %>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
 
         <a
           href="/game/leave"

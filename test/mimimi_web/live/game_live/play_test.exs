@@ -350,4 +350,39 @@ defmodule MimimiWeb.GameLive.PlayTest do
       assert Enum.at(leaderboard, 1).points == 6
     end
   end
+
+  describe "Manual game stopping" do
+    @tag :external_db
+    test "player receives flash message when host stops game", %{
+      player_conn: player_conn,
+      game: game
+    } do
+      # Start the game
+      {:ok, game} = Games.start_game(game)
+
+      # Mount the play view as a player
+      {:ok, view, _html} = live(player_conn, "/games/#{game.id}/current")
+
+      # Host stops the game
+      Games.stop_game_manually(game.id)
+
+      # Player should receive the game_stopped_by_host message and be redirected
+      assert_redirect(view, "/dashboard/#{game.id}")
+    end
+
+    test "player can access dashboard after game is stopped", %{
+      player_conn: player_conn,
+      game: game,
+      player_record: _player_record
+    } do
+      # Stop the game manually
+      {:ok, _stopped_game} = Games.stop_game_manually(game.id)
+
+      # Player should be able to access the dashboard to see the leaderboard
+      {:ok, _view, html} = live(player_conn, "/dashboard/#{game.id}")
+
+      # Should see the game over screen
+      assert html =~ "Spiel fertig!"
+    end
+  end
 end

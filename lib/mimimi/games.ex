@@ -911,9 +911,98 @@ defmodule Mimimi.Games do
   end
 
   @doc """
+  Manually stops a game and transitions it to game_over state.
+  Used when the host explicitly clicks "Stop this game" button.
+  """
+  def stop_game_manually(game_id) do
+    case Repo.get(Game, game_id) do
+      nil ->
+        {:error, :not_found}
+
+      game ->
+        # Stop the game server if running
+        stop_game_server(game_id)
+
+        # Update game state to game_over
+        result =
+          game
+          |> Game.changeset(%{state: "game_over"})
+          |> Repo.update()
+
+        # Broadcast to all players that the game was stopped
+        case result do
+          {:ok, updated_game} ->
+            broadcast_to_game(game_id, :game_stopped_by_host)
+            broadcast_game_count_changed()
+            {:ok, updated_game}
+
+          error ->
+            error
+        end
+    end
+  end
+
+  @doc """
   Gets a game by ID.
   """
   def get_game(game_id) do
     Repo.get(Game, game_id)
+  end
+
+  @doc """
+  Gets all correct picks with word images for each player in a game.
+  Returns a map where keys are player IDs and values are lists of word data.
+
+  ## Examples
+
+      iex> Games.get_correct_picks_by_player(game_id)
+      %{
+        "player_1_id" => [
+          %{id: 123, name: "Affe", image_url: "https://..."},
+          %{id: 456, name: "Baum", image_url: "https://..."}
+        ],
+        "player_2_id" => [
+          %{id: 789, name: "Haus", image_url: "https://..."}
+        ]
+      }
+  """
+  def get_correct_picks_by_player(game_id) do
+    # Get all picks for this game across all rounds
+    picks =
+      from(p in Pick,
+        join: r in Round,
+        on: p.round_id == r.id,
+        join: player in Player,
+        on: p.player_id == player.id,
+        where: r.game_id == ^game_id and p.is_correct == true,
+        select: %{player_id: player.id, word_id: p.word_id},
+        order_by: [asc: p.inserted_at]
+      )
+      |> Repo.all()
+
+    # Group picks by player and fetch word data
+    picks
+    |> Enum.group_by(& &1.player_id, & &1.word_id)
+    |> Enum.map(&fetch_words_for_player/1)
+    |> Enum.into(%{})
+  end
+
+  defp fetch_words_for_player({player_id, word_ids}) do
+    alias Mimimi.WortSchule
+
+    words = Enum.map(word_ids, &fetch_word_data/1)
+    {player_id, words}
+  end
+
+  defp fetch_word_data(word_id) do
+    alias Mimimi.WortSchule
+
+    case WortSchule.get_complete_word(word_id) do
+      {:ok, word_data} ->
+        %{id: word_data.id, name: word_data.name, image_url: word_data.image_url}
+
+      {:error, _} ->
+        %{id: word_id, name: "?", image_url: nil}
+    end
   end
 end
