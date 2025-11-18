@@ -85,10 +85,14 @@ defmodule MimimiWeb.DashboardLive.Show do
     invitation_url = "#{MimimiWeb.Endpoint.url()}/#{short_code}"
     qr_code_svg = generate_qr_code(invitation_url)
 
+    # Get current player if they are a player in the game
+    current_player = Games.get_player_by_game_and_user(game_id, socket.assigns.current_user.id)
+
     socket =
       socket
       |> assign(:game, game)
       |> assign(:players, game.players)
+      |> assign(:current_player, current_player)
       |> assign(:mode, determine_mode(game, socket.assigns.current_user, role))
       |> assign(:lobby_time_remaining, nil)
       |> assign(:short_code, short_code)
@@ -461,6 +465,28 @@ defmodule MimimiWeb.DashboardLive.Show do
     |> Map.keys()
     |> Enum.map(fn "player_" <> user_id -> user_id end)
     |> MapSet.new()
+  end
+
+  # Groups players by rank, handling ties properly.
+  # Returns a list of {rank, [players]} tuples where players with the same points share the same rank.
+  defp group_players_by_rank(players) do
+    players
+    |> Enum.sort_by(& &1.points, :desc)
+    |> Enum.reduce({[], 1, nil}, fn player, {acc, current_rank, last_points} ->
+      rank =
+        if last_points == player.points do
+          # Same points as previous player, use same rank
+          current_rank
+        else
+          # Different points, calculate new rank based on position
+          length(acc) + 1
+        end
+
+      {acc ++ [{rank, player}], rank, player.points}
+    end)
+    |> elem(0)
+    |> Enum.group_by(fn {rank, _player} -> rank end, fn {_rank, player} -> player end)
+    |> Enum.sort_by(fn {rank, _players} -> rank end)
   end
 
   defp calculate_word_picks(round_analytics) do
@@ -1047,7 +1073,21 @@ defmodule MimimiWeb.DashboardLive.Show do
 
   defp render_game_over(assigns) do
     ~H"""
-    <div class="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900">
+    <div class="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900 relative">
+      <%!-- Player Avatar Indicator (only for players, not host) --%>
+      <%= if @current_player do %>
+        <div class="fixed top-2 right-2 sm:top-4 sm:right-4 z-50">
+          <div class="backdrop-blur-xl bg-white/95 dark:bg-gray-800/95 rounded-2xl p-3 sm:p-4 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
+            <div class="flex flex-col items-center gap-1">
+              <span class="text-4xl sm:text-5xl">{@current_player.avatar}</span>
+              <span class="text-xs sm:text-sm font-bold text-purple-600 dark:text-purple-400 tabular-nums">
+                {@current_player.points}
+              </span>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
       <div class="w-full max-w-4xl">
         <div class="text-center mb-10">
           <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
@@ -1060,29 +1100,69 @@ defmodule MimimiWeb.DashboardLive.Show do
 
         <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 mb-6">
           <div class="space-y-3">
-            <%= for {player, index} <- Enum.with_index(Enum.sort_by(@players, & &1.points, :desc)) do %>
+            <% ranked_groups = group_players_by_rank(@players) %>
+            <%= for {rank, players_at_rank} <- ranked_groups do %>
+              <% # Multiple players with same rank (tie)
+              is_tie = length(players_at_rank) > 1
+              # Highlight current player
+              has_current_player =
+                @current_player && Enum.any?(players_at_rank, &(&1.id == @current_player.id)) %>
               <div class={[
-                "relative flex items-center justify-between p-5 rounded-2xl transition-all duration-300 overflow-hidden group",
-                case index do
-                  0 ->
+                "relative p-5 rounded-2xl transition-all duration-300 overflow-hidden group",
+                case rank do
+                  1 ->
                     "bg-gradient-to-r from-yellow-400 to-orange-400 text-white shadow-lg shadow-yellow-500/50"
 
-                  1 ->
+                  2 ->
                     "bg-gradient-to-r from-gray-300 to-gray-400 dark:from-gray-600 dark:to-gray-700 text-white shadow-lg shadow-gray-500/50"
 
-                  2 ->
+                  3 ->
                     "bg-gradient-to-r from-orange-400 to-red-400 text-white shadow-lg shadow-orange-500/50"
 
                   _ ->
-                    "bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white"
+                    if(has_current_player,
+                      do:
+                        "bg-gradient-to-r from-purple-100 to-pink-100 dark:from-purple-900/40 dark:to-pink-900/40 border-2 border-purple-500 dark:border-purple-400 text-gray-900 dark:text-white",
+                      else:
+                        "bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white"
+                    )
                 end
               ]}>
-                <div class="relative flex items-center gap-4">
-                  <span class="text-2xl font-bold">{index + 1}.</span>
-                  <span class="text-4xl">{player.avatar}</span>
+                <div class="relative flex items-center justify-between gap-4">
+                  <div class="flex items-center gap-4 flex-wrap">
+                    <span class="text-2xl font-bold">{rank}.</span>
+                    <%= if is_tie do %>
+                      <%!-- Multiple avatars for tied players --%>
+                      <div class="flex items-center gap-2">
+                        <%= for player <- players_at_rank do %>
+                          <span class={[
+                            "text-4xl",
+                            if(@current_player && player.id == @current_player.id,
+                              do: "ring-4 ring-white dark:ring-gray-900 rounded-full"
+                            )
+                          ]}>
+                            {player.avatar}
+                          </span>
+                        <% end %>
+                      </div>
+                    <% else %>
+                      <%!-- Single avatar --%>
+                      <% [player] = players_at_rank %>
+                      <span class={[
+                        "text-4xl",
+                        if(@current_player && player.id == @current_player.id,
+                          do: "ring-4 ring-white dark:ring-gray-900 rounded-full"
+                        )
+                      ]}>
+                        {player.avatar}
+                      </span>
+                    <% end %>
+                  </div>
+                  <span class="relative text-xl font-bold">
+                    {hd(players_at_rank).points} Punkte
+                  </span>
                 </div>
-                <span class="relative text-xl font-bold">{player.points} Punkte</span>
-                <%= if index < 3 do %>
+                <%= if rank < 4 do %>
                   <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700">
                   </div>
                 <% end %>

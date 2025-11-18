@@ -26,7 +26,7 @@ A mobile-first multiplayer word-guessing game built with Phoenix LiveView for Ge
 - Join via invitation link, QR code scan, or manual 6-digit code entry
 - Manual code entry form only appears when games are waiting for players (improved UX)
 - Select unique animal avatar (🐻🐘🦉🐸🦊🐰🦛🐱🦁🐼)
-- **Avatar Indicator**: Players see their avatar and current points in the top right corner during gameplay
+- **Avatar Indicator**: Players see their avatar and current points in the top right corner during gameplay and game-over screen
 - Real-time gameplay with progressive keyword reveals
 - **Guaranteed Unique Words**: Each round features a different target word - no duplicate words across rounds in the same game
 - Immediate feedback (correct/wrong)
@@ -35,7 +35,11 @@ A mobile-first multiplayer word-guessing game built with Phoenix LiveView for Ge
   - Players who picked wrong see "Richtige Antwort:" (Correct answer)
   - Responsive layout: side-by-side on desktop, stacked on mobile
 - Live points tracking throughout the game
-- Final leaderboard displayed to all players at game end
+- **Smart Final Leaderboard**:
+  - Players with equal points share the same rank (proper tie handling)
+  - Current player's row is highlighted with purple gradient
+  - Current player's avatar has white ring indicator
+  - Tied players shown side-by-side on same row
 
 ### Multiplayer Features
 - Real-time updates via Phoenix PubSub
