@@ -9,11 +9,9 @@ defmodule Mimimi.Games do
 
   # Constants
   @lobby_timeout_seconds 15 * 60
-  @feedback_delay_ms 3000
   @points_one_keyword 5
   @points_two_keywords 3
   @points_three_keywords 1
-  @invitation_expiry_hours 24
 
   # Game functions
 
@@ -82,21 +80,25 @@ defmodule Mimimi.Games do
     }
 
     case create_game(original_game.host_user_id, game_attrs) do
-      {:ok, new_game} ->
-        player_results =
-          Enum.map(players_to_add, fn player_data ->
-            create_player(player_data.user_id, new_game.id, %{avatar: player_data.avatar})
-          end)
+      {:ok, new_game} -> add_players_to_new_game(new_game, players_to_add, original_game)
+      {:error, reason} -> {:error, reason}
+    end
+  end
 
-        if Enum.all?(player_results, fn result -> match?({:ok, _}, result) end) do
-          broadcast_to_game(original_game.id, {:new_game_started, new_game.id})
-          {:ok, new_game}
-        else
-          {:error, :failed_to_create_players}
-        end
+  # Helper function to add players to a new game
+  defp add_players_to_new_game(new_game, players_to_add, original_game) do
+    player_results =
+      Enum.map(players_to_add, fn player_data ->
+        create_player(player_data.user_id, new_game.id, %{avatar: player_data.avatar})
+      end)
 
-      {:error, reason} ->
-        {:error, reason}
+    case Enum.all?(player_results, fn result -> match?({:ok, _}, result) end) do
+      true ->
+        broadcast_to_game(original_game.id, {:new_game_started, new_game.id})
+        {:ok, new_game}
+
+      false ->
+        {:error, :failed_to_create_players}
     end
   end
 
@@ -348,39 +350,43 @@ defmodule Mimimi.Games do
     case result do
       {:ok, game} ->
         broadcast_game_count_changed()
-        # Broadcast that game has started
         broadcast_to_game(game.id, :game_started)
-
-        # Generate rounds - async in production, sync in test
-        if Mix.env() == :test do
-          # Test environment: generate rounds synchronously
-          generate_rounds_sync(game)
-        else
-          # Production: generate rounds asynchronously for better UX
-          # Capture the current process (the LiveView process that owns the DB connection)
-          caller_pid = self()
-
-          Task.Supervisor.start_child(Mimimi.TaskSupervisor, fn ->
-            # Allow this task to use the database connections from the caller
-            # This is needed because WortSchule queries happen in generate_rounds
-            try do
-              # Allow access to both repos if we're in a sandboxed environment
-              if function_exported?(Ecto.Adapters.SQL.Sandbox, :allow, 3) do
-                Ecto.Adapters.SQL.Sandbox.allow(Mimimi.Repo, caller_pid, self())
-                Ecto.Adapters.SQL.Sandbox.allow(Mimimi.WortSchuleRepo, caller_pid, self())
-              end
-            rescue
-              _ -> :ok
-            end
-
-            generate_rounds_async(game)
-          end)
-        end
-
+        generate_game_rounds(game)
         {:ok, game}
 
       error ->
         error
+    end
+  end
+
+  # Helper to generate rounds - async in production, sync in test
+  defp generate_game_rounds(game) do
+    if Mix.env() == :test do
+      generate_rounds_sync(game)
+    else
+      generate_rounds_async_task(game)
+    end
+  end
+
+  # Async round generation for production
+  defp generate_rounds_async_task(game) do
+    caller_pid = self()
+
+    Task.Supervisor.start_child(Mimimi.TaskSupervisor, fn ->
+      setup_sandbox_access(caller_pid)
+      generate_rounds_async(game)
+    end)
+  end
+
+  # Setup database sandbox access for async task
+  defp setup_sandbox_access(caller_pid) do
+    try do
+      if function_exported?(Ecto.Adapters.SQL.Sandbox, :allow, 3) do
+        Ecto.Adapters.SQL.Sandbox.allow(Mimimi.Repo, caller_pid, self())
+        Ecto.Adapters.SQL.Sandbox.allow(Mimimi.WortSchuleRepo, caller_pid, self())
+      end
+    rescue
+      _ -> :ok
     end
   end
 

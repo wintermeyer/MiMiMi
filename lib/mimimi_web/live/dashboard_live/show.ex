@@ -485,31 +485,42 @@ defmodule MimimiWeb.DashboardLive.Show do
   def handle_event("start_new_game", _params, socket) do
     game = socket.assigns.game
     current_user = socket.assigns.current_user
-    online_player_ids = socket.assigns.online_player_ids
 
     if game.host_user_id != current_user.id do
       {:noreply, put_flash(socket, :error, "Nur der Spielleiter kann ein neues Spiel starten.")}
     else
-      online_user_ids =
-        if MapSet.size(online_player_ids) > 0 do
-          MapSet.to_list(online_player_ids)
-        else
-          nil
-        end
+      socket = create_and_start_new_game(socket)
+      {:noreply, socket}
+    end
+  end
 
-      case Games.create_new_game_with_players(game, online_user_ids) do
-        {:ok, new_game} ->
-          case Games.start_game(new_game) do
-            {:ok, started_game} ->
-              {:noreply, redirect(socket, to: ~p"/game/#{started_game.id}/set-host-token")}
+  defp create_and_start_new_game(socket) do
+    game = socket.assigns.game
+    online_player_ids = socket.assigns.online_player_ids
 
-            {:error, _reason} ->
-              {:noreply, put_flash(socket, :error, "Fehler beim Starten des neuen Spiels.")}
-          end
-
-        {:error, _reason} ->
-          {:noreply, put_flash(socket, :error, "Fehler beim Erstellen des neuen Spiels.")}
+    online_user_ids =
+      if MapSet.size(online_player_ids) > 0 do
+        MapSet.to_list(online_player_ids)
+      else
+        nil
       end
+
+    case Games.create_new_game_with_players(game, online_user_ids) do
+      {:ok, new_game} ->
+        start_new_game_or_error(socket, new_game)
+
+      {:error, _reason} ->
+        put_flash(socket, :error, "Fehler beim Erstellen des neuen Spiels.")
+    end
+  end
+
+  defp start_new_game_or_error(socket, new_game) do
+    case Games.start_game(new_game) do
+      {:ok, started_game} ->
+        redirect(socket, to: ~p"/game/#{started_game.id}/set-host-token")
+
+      {:error, _reason} ->
+        put_flash(socket, :error, "Fehler beim Starten des neuen Spiels.")
     end
   end
 

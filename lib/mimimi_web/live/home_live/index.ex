@@ -668,42 +668,40 @@ defmodule MimimiWeb.HomeLive.Index do
         _ -> []
       end
 
-    cond do
-      word_types == [] ->
-        socket
-        |> assign(
-          :words_error,
-          "Bitte wähle mindestens eine Wortart aus, um ein Spiel zu erstellen."
-        )
-        |> assign(:can_create_game, false)
+    if word_types == [] do
+      socket
+      |> assign(
+        :words_error,
+        "Bitte wähle mindestens eine Wortart aus, um ein Spiel zu erstellen."
+      )
+      |> assign(:can_create_game, false)
+    else
+      case Games.validate_word_availability(%{
+             word_types: word_types,
+             rounds_count: rounds_count,
+             grid_size: grid_size
+           }) do
+        {:ok, _stats} ->
+          socket
+          |> assign(:words_error, nil)
+          |> assign(:can_create_game, true)
 
-      true ->
-        case Games.validate_word_availability(%{
-               word_types: word_types,
-               rounds_count: rounds_count,
-               grid_size: grid_size
-             }) do
-          {:ok, _stats} ->
-            socket
-            |> assign(:words_error, nil)
-            |> assign(:can_create_game, true)
+        {:error, :insufficient_target_words} ->
+          socket
+          |> assign(
+            :words_error,
+            "Nicht genug Wörter mit ausreichend Hinweisen für die ausgewählten Wortarten verfügbar. Bitte wähle andere Wortarten oder reduziere die Anzahl der Runden."
+          )
+          |> assign(:can_create_game, false)
 
-          {:error, :insufficient_target_words} ->
-            socket
-            |> assign(
-              :words_error,
-              "Nicht genug Wörter mit ausreichend Hinweisen für die ausgewählten Wortarten verfügbar. Bitte wähle andere Wortarten oder reduziere die Anzahl der Runden."
-            )
-            |> assign(:can_create_game, false)
-
-          {:error, :insufficient_distractor_words} ->
-            socket
-            |> assign(
-              :words_error,
-              "Nicht genug Wörter für die ausgewählte Spielfeldgröße verfügbar. Bitte wähle eine kleinere Spielfeldgröße oder andere Wortarten."
-            )
-            |> assign(:can_create_game, false)
-        end
+        {:error, :insufficient_distractor_words} ->
+          socket
+          |> assign(
+            :words_error,
+            "Nicht genug Wörter für die ausgewählte Spielfeldgröße verfügbar. Bitte wähle eine kleinere Spielfeldgröße oder andere Wortarten."
+          )
+          |> assign(:can_create_game, false)
+      end
     end
   end
 
