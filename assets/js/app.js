@@ -72,10 +72,24 @@ window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 window.addEventListener("phx:copy", (event) => {
   const text = event.target.value || event.target.textContent || event.target.innerText
   navigator.clipboard.writeText(text).then(() => {
-    // Copy successful
   }).catch(err => {
     console.error('Failed to copy text: ', err)
   })
+})
+
+window.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('click', (event) => {
+    const stopPropArea = event.target.closest('[data-stop-propagation]')
+    if (stopPropArea && !event.target.closest('summary')) {
+      const details = stopPropArea.closest('details')
+      if (details) {
+        const wasOpen = details.open
+        setTimeout(() => {
+          details.open = wasOpen
+        }, 50)
+      }
+    }
+  }, true)
 })
 
 // connect if there are any LiveViews on the page

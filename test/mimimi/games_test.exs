@@ -605,4 +605,80 @@ defmodule Mimimi.GamesTest do
       assert_receive :game_stopped_by_host
     end
   end
+
+  describe "generate_rounds/1" do
+    @describetag :external_db
+
+    setup do
+      {:ok, host_user} = Accounts.get_or_create_user_by_session("unique_words_test")
+      %{host_user: host_user}
+    end
+
+    test "ensures unique target words across all rounds in a game", %{host_user: host_user} do
+      {:ok, game} =
+        Games.create_game(host_user.id, %{
+          rounds_count: 5,
+          clues_interval: 6,
+          grid_size: 9,
+          word_types: ["Noun"]
+        })
+
+      # Generate rounds
+      Games.generate_rounds(game)
+
+      # Fetch all rounds for this game
+      rounds =
+        Repo.all(
+          from r in Games.Round,
+            where: r.game_id == ^game.id,
+            order_by: [asc: r.position],
+            select: r.word_id
+        )
+
+      # Assert we have 5 rounds
+      assert length(rounds) == 5
+
+      # Assert all target word_ids are unique (no duplicates)
+      unique_word_ids = Enum.uniq(rounds)
+
+      assert length(unique_word_ids) == 5,
+             "Expected 5 unique target words, but got #{length(unique_word_ids)}. Word IDs: #{inspect(rounds)}"
+    end
+
+    test "ensures unique target words even with generate_single_round_fast", %{
+      host_user: host_user
+    } do
+      {:ok, game} =
+        Games.create_game(host_user.id, %{
+          rounds_count: 3,
+          clues_interval: 6,
+          grid_size: 9,
+          word_types: ["Noun"]
+        })
+
+      # Start the game (which uses generate_single_round_fast in production)
+      {:ok, _game} = Games.start_game(game)
+
+      # Wait for async round generation to complete
+      :timer.sleep(1000)
+
+      # Fetch all rounds
+      rounds =
+        Repo.all(
+          from r in Games.Round,
+            where: r.game_id == ^game.id,
+            order_by: [asc: r.position],
+            select: r.word_id
+        )
+
+      # Assert we have 3 rounds
+      assert length(rounds) == 3
+
+      # Assert all target word_ids are unique
+      unique_word_ids = Enum.uniq(rounds)
+
+      assert length(unique_word_ids) == 3,
+             "Expected 3 unique target words, but got #{length(unique_word_ids)}. Word IDs: #{inspect(rounds)}"
+    end
+  end
 end

@@ -7,6 +7,14 @@ defmodule Mimimi.Games do
   alias Mimimi.Repo
   alias Mimimi.Games.{Game, GameInvite, Player, Round, Pick, Word, Keyword}
 
+  # Constants
+  @lobby_timeout_seconds 15 * 60
+  @feedback_delay_ms 3000
+  @points_one_keyword 5
+  @points_two_keywords 3
+  @points_three_keywords 1
+  @invitation_expiry_hours 24
+
   # Game functions
 
   @doc """
@@ -43,6 +51,50 @@ defmodule Mimimi.Games do
   # Generates a cryptographically secure host token
   defp generate_host_token do
     :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
+  end
+
+  @doc """
+  Validates if there are enough words available for the given game configuration.
+  Returns {:ok, %{target_words: count, total_words: count}} if valid,
+  or {:error, reason} if insufficient words are available.
+
+  ## Examples
+
+      iex> validate_word_availability(%{word_types: ["Noun"], rounds_count: 3, grid_size: 9})
+      {:ok, %{target_words: 150, total_words: 500}}
+
+      iex> validate_word_availability(%{word_types: ["InvalidType"], rounds_count: 10, grid_size: 16})
+      {:error, :insufficient_target_words}
+  """
+  def validate_word_availability(attrs) do
+    alias Mimimi.WortSchule
+
+    word_types = Map.get(attrs, :word_types, [])
+    rounds_count = Map.get(attrs, :rounds_count, 1)
+    grid_size = Map.get(attrs, :grid_size, 9)
+
+    target_word_ids =
+      WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 3, types: word_types)
+
+    all_word_ids =
+      WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 1, types: word_types)
+
+    target_count = length(target_word_ids)
+    total_count = length(all_word_ids)
+
+    required_target = rounds_count
+    required_total = rounds_count * (grid_size - 1)
+
+    cond do
+      target_count < required_target ->
+        {:error, :insufficient_target_words}
+
+      total_count < required_total ->
+        {:error, :insufficient_distractor_words}
+
+      true ->
+        {:ok, %{target_words: target_count, total_words: total_count}}
+    end
   end
 
   @doc """
@@ -210,7 +262,7 @@ defmodule Mimimi.Games do
   Checks if the lobby has exceeded 15 minutes.
   """
   def lobby_timeout?(%Game{inserted_at: inserted_at, state: "waiting_for_players"}) do
-    timeout_seconds = 15 * 60
+    timeout_seconds = @lobby_timeout_seconds
     # Convert NaiveDateTime to DateTime for comparison
     inserted_at_utc = DateTime.from_naive!(inserted_at, "Etc/UTC")
     DateTime.diff(DateTime.utc_now(), inserted_at_utc, :second) >= timeout_seconds
@@ -222,7 +274,7 @@ defmodule Mimimi.Games do
   Calculates seconds remaining until lobby timeout.
   """
   def calculate_lobby_time_remaining(%Game{inserted_at: inserted_at}) do
-    timeout_seconds = 15 * 60
+    timeout_seconds = @lobby_timeout_seconds
     # Convert NaiveDateTime to DateTime for comparison
     inserted_at_utc = DateTime.from_naive!(inserted_at, "Etc/UTC")
     elapsed = DateTime.diff(DateTime.utc_now(), inserted_at_utc, :second)
@@ -231,37 +283,184 @@ defmodule Mimimi.Games do
 
   @doc """
   Starts a game and generates rounds.
+
+  By default, rounds are generated asynchronously in production for better performance.
+  In test environment, rounds are generated synchronously to avoid database ownership issues.
+
+  The game state is immediately set to "game_running", and rounds are generated either
+  synchronously (tests) or in the background (production).
+  Once rounds are ready, the first round is activated and :round_started is broadcast.
   """
   def start_game(%Game{} = game) do
+    # Update game state immediately
     result =
-      Repo.transaction(fn ->
-        # Update game state
-        game =
-          game
-          |> Game.changeset(%{state: "game_running", started_at: DateTime.utc_now()})
-          |> Repo.update!()
-
-        # Generate rounds
-        generate_rounds(game)
-
-        # Activate the first round
-        case advance_to_next_round(game.id) do
-          {:ok, _round} -> :ok
-          {:error, _} -> :ok
-        end
-
-        game
-      end)
+      game
+      |> Game.changeset(%{state: "game_running", started_at: DateTime.utc_now()})
+      |> Repo.update()
 
     case result do
       {:ok, game} ->
         broadcast_game_count_changed()
-        broadcast_to_game(game.id, :round_started)
+        # Broadcast that game has started
+        broadcast_to_game(game.id, :game_started)
+
+        # Generate rounds - async in production, sync in test
+        if Mix.env() == :test do
+          # Test environment: generate rounds synchronously
+          generate_rounds_sync(game)
+        else
+          # Production: generate rounds asynchronously for better UX
+          # Capture the current process (the LiveView process that owns the DB connection)
+          caller_pid = self()
+
+          Task.Supervisor.start_child(Mimimi.TaskSupervisor, fn ->
+            # Allow this task to use the database connections from the caller
+            # This is needed because WortSchule queries happen in generate_rounds
+            try do
+              # Allow access to both repos if we're in a sandboxed environment
+              if function_exported?(Ecto.Adapters.SQL.Sandbox, :allow, 3) do
+                Ecto.Adapters.SQL.Sandbox.allow(Mimimi.Repo, caller_pid, self())
+                Ecto.Adapters.SQL.Sandbox.allow(Mimimi.WortSchuleRepo, caller_pid, self())
+              end
+            rescue
+              _ -> :ok
+            end
+
+            generate_rounds_async(game)
+          end)
+        end
+
         {:ok, game}
 
       error ->
         error
     end
+  end
+
+  # Synchronous round generation for tests
+  defp generate_rounds_sync(game) do
+    try do
+      generate_rounds(game)
+
+      case advance_to_next_round(game.id) do
+        {:ok, _round} ->
+          broadcast_to_game(game.id, :round_started)
+          :ok
+
+        {:error, reason} ->
+          require Logger
+          Logger.error("Failed to advance to first round for game #{game.id}: #{inspect(reason)}")
+          :error
+      end
+    rescue
+      error ->
+        require Logger
+
+        Logger.error(
+          "Failed to generate rounds for game #{game.id}: #{inspect(error)}\n#{Exception.format_stacktrace(__STACKTRACE__)}"
+        )
+
+        update_game_state(game, "game_over")
+        broadcast_to_game(game.id, :round_generation_failed)
+        :error
+    end
+  end
+
+  # Async round generation with error handling
+  # Optimized: generate first round immediately, rest in background
+  defp generate_rounds_async(game) do
+    require Logger
+    Logger.info("Starting async round generation for game #{game.id}")
+
+    try do
+      # Generate only the first round immediately for faster game start
+      generate_single_round_fast(game, 1)
+      Logger.info("First round generated for game #{game.id}")
+
+      # Activate the first round
+      case advance_to_next_round(game.id) do
+        {:ok, round} ->
+          Logger.info("Advanced to first round #{round.id} for game #{game.id}")
+          # Broadcast that the first round is ready - game can start NOW
+          broadcast_to_game(game.id, :round_started)
+
+          # Generate remaining rounds in the background while players are playing
+          if game.rounds_count > 1 do
+            Enum.each(2..game.rounds_count, fn position ->
+              generate_single_round_fast(game, position)
+            end)
+
+            Logger.info(
+              "Generated #{game.rounds_count - 1} additional rounds for game #{game.id}"
+            )
+          end
+
+          :ok
+
+        {:error, reason} ->
+          Logger.error("Failed to advance to first round for game #{game.id}: #{inspect(reason)}")
+          broadcast_to_game(game.id, :round_generation_failed)
+          :error
+      end
+    rescue
+      error ->
+        Logger.error(
+          "Failed to generate rounds for game #{game.id}: #{inspect(error)}\n#{Exception.format_stacktrace(__STACKTRACE__)}"
+        )
+
+        # Update game state to indicate failure
+        try do
+          update_game_state(game, "game_over")
+        rescue
+          _ -> :ok
+        end
+
+        broadcast_to_game(game.id, :round_generation_failed)
+        :error
+    end
+  end
+
+  # Fast single round generation - reuses the same word pool lookup
+  defp generate_single_round_fast(game, position) do
+    alias Mimimi.WortSchule
+
+    # Get word pools (this is cached by the database for subsequent calls)
+    target_word_ids =
+      WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 3, types: game.word_types)
+
+    all_word_ids =
+      WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 1, types: game.word_types)
+
+    # Get already used target words from existing rounds to ensure uniqueness
+    used_target_word_ids =
+      from(r in Round,
+        where: r.game_id == ^game.id,
+        select: r.word_id
+      )
+      |> Repo.all()
+
+    # Remove already used target words from the pool
+    available_target_word_ids = target_word_ids -- used_target_word_ids
+
+    # Generate single round by creating a temporary game with rounds_count = position
+    # This ensures generate_rounds_data stops after generating just this one round
+    temp_game = %{game | rounds_count: position}
+
+    rounds_data =
+      generate_rounds_data(temp_game, available_target_word_ids, all_word_ids, [], position)
+
+    # Extract the round data for this position (it will be the last in the list)
+    round_data = List.last(rounds_data)
+
+    # Insert with timestamps
+    now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+
+    round_with_timestamps =
+      round_data
+      |> Map.put(:inserted_at, now)
+      |> Map.put(:updated_at, now)
+
+    Repo.insert_all(Round, [round_with_timestamps])
   end
 
   @doc """
@@ -305,7 +504,7 @@ defmodule Mimimi.Games do
   Excludes games that have timed out (older than 15 minutes).
   """
   def count_waiting_games do
-    timeout_seconds = 15 * 60
+    timeout_seconds = @lobby_timeout_seconds
     timeout_threshold = DateTime.add(DateTime.utc_now(), -timeout_seconds, :second)
 
     from(g in Game,
@@ -482,13 +681,30 @@ defmodule Mimimi.Games do
       raise "Not enough words available to generate rounds with grid size #{game.grid_size} for word types: #{Enum.join(game.word_types, ", ")}"
     end
 
-    # Generate each round
-    Enum.each(1..game.rounds_count, fn position ->
-      generate_single_round(game, position, target_word_ids, all_word_ids)
-    end)
+    # Generate all rounds data first, then batch insert
+    rounds_data = generate_rounds_data(game, target_word_ids, all_word_ids, [])
+
+    # Batch insert all rounds at once with timestamps
+    now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+
+    rounds_with_timestamps =
+      Enum.map(rounds_data, fn round_data ->
+        round_data
+        |> Map.put(:inserted_at, now)
+        |> Map.put(:updated_at, now)
+      end)
+
+    Repo.insert_all(Round, rounds_with_timestamps)
   end
 
-  defp generate_single_round(game, position, available_targets, all_word_ids) do
+  defp generate_rounds_data(game, target_word_ids, all_word_ids, acc, position \\ 1)
+
+  defp generate_rounds_data(game, _target_ids, _all_ids, acc, position)
+       when position > game.rounds_count do
+    Enum.reverse(acc)
+  end
+
+  defp generate_rounds_data(game, available_targets, all_word_ids, acc, position) do
     alias Mimimi.WortSchule
 
     target_word_id = Enum.random(available_targets)
@@ -508,16 +724,25 @@ defmodule Mimimi.Games do
 
         possible_words_ids = Enum.shuffle([target_word_id | distractor_ids])
 
-        %Round{}
-        |> Round.changeset(%{
+        round_data = %{
           game_id: game.id,
           word_id: target_word_id,
           keyword_ids: keyword_ids,
           possible_words_ids: possible_words_ids,
           position: position,
           state: "on_hold"
-        })
-        |> Repo.insert!()
+        }
+
+        # Remove the used target word from available targets to ensure uniqueness
+        new_targets = available_targets -- [target_word_id]
+
+        generate_rounds_data(
+          game,
+          new_targets,
+          all_word_ids,
+          [round_data | acc],
+          position + 1
+        )
 
       {:error, :not_found} ->
         new_targets = available_targets -- [target_word_id]
@@ -526,7 +751,7 @@ defmodule Mimimi.Games do
           raise "Failed to fetch keyword data for all available target words"
         end
 
-        generate_single_round(game, position, new_targets, all_word_ids)
+        generate_rounds_data(game, new_targets, all_word_ids, acc, position)
     end
   end
 
@@ -622,9 +847,9 @@ defmodule Mimimi.Games do
   """
   def calculate_points(keywords_shown, _total_keywords \\ 5) do
     case keywords_shown do
-      1 -> 5
-      2 -> 3
-      _ -> 1
+      1 -> @points_one_keyword
+      2 -> @points_two_keywords
+      _ -> @points_three_keywords
     end
   end
 
@@ -652,6 +877,58 @@ defmodule Mimimi.Games do
   def get_keywords_by_ids(keyword_ids) do
     from(k in Keyword, where: k.id in ^keyword_ids)
     |> Repo.all()
+  end
+
+  @doc """
+  Fetches words for display from WortSchule, handling missing data gracefully.
+
+  Returns a list of word maps with fallback data for missing words.
+
+  ## Examples
+
+      iex> fetch_words_for_display([123, 456])
+      [
+        %{id: 123, name: "Apfel", image_url: "https://..."},
+        %{id: 456, name: "?", image_url: nil}
+      ]
+  """
+  def fetch_words_for_display(word_ids) when is_list(word_ids) do
+    alias Mimimi.WortSchule
+
+    words_map = WortSchule.get_complete_words_batch(word_ids)
+
+    Enum.map(word_ids, fn word_id ->
+      case Map.get(words_map, word_id) do
+        nil -> %{id: word_id, name: "?", image_url: nil}
+        word_data -> %{id: word_data.id, name: word_data.name, image_url: word_data.image_url}
+      end
+    end)
+  end
+
+  @doc """
+  Fetches keywords for display from WortSchule, handling missing data gracefully.
+
+  Returns a list of keyword maps with fallback data for missing keywords.
+
+  ## Examples
+
+      iex> fetch_keywords_for_display([123, 456])
+      [
+        %{id: 123, name: "rot"},
+        %{id: 456, name: "?"}
+      ]
+  """
+  def fetch_keywords_for_display(keyword_ids) when is_list(keyword_ids) do
+    alias Mimimi.WortSchule
+
+    keywords_map = WortSchule.get_words_batch(keyword_ids)
+
+    Enum.map(keyword_ids, fn keyword_id ->
+      case Map.get(keywords_map, keyword_id) do
+        nil -> %{id: keyword_id, name: "?"}
+        keyword_data -> %{id: keyword_data.id, name: keyword_data.name}
+      end
+    end)
   end
 
   # PubSub functions
@@ -741,18 +1018,26 @@ defmodule Mimimi.Games do
   Returns information about player picks, timing, and correctness for the current round.
   """
   def get_round_analytics(round_id) do
-    alias Mimimi.WortSchule
+    # Optimized query with explicit joins to avoid N+1
+    round =
+      from(r in Round,
+        where: r.id == ^round_id,
+        join: g in assoc(r, :game),
+        left_join: p in assoc(r, :picks),
+        left_join: player in assoc(p, :player),
+        preload: [game: g, picks: {p, player: player}]
+      )
+      |> Repo.one!()
 
-    round = Repo.get!(Round, round_id) |> Repo.preload([:game, picks: :player])
+    # Batch fetch all word data at once using helper function
+    word_ids = Enum.map(round.picks, & &1.word_id)
+    words_map = fetch_words_for_display(word_ids) |> Map.new(&{&1.id, &1})
 
     players_with_picks =
       Enum.map(round.picks, fn pick ->
-        # Fetch the word data including image
+        # Get word data from the fetched map
         word_data =
-          case WortSchule.get_complete_word(pick.word_id) do
-            {:ok, data} -> %{id: data.id, name: data.name, image_url: data.image_url}
-            {:error, _} -> %{id: pick.word_id, name: "?", image_url: nil}
-          end
+          Map.get(words_map, pick.word_id, %{id: pick.word_id, name: "?", image_url: nil})
 
         %{
           player: pick.player,
@@ -988,21 +1273,7 @@ defmodule Mimimi.Games do
   end
 
   defp fetch_words_for_player({player_id, word_ids}) do
-    alias Mimimi.WortSchule
-
-    words = Enum.map(word_ids, &fetch_word_data/1)
+    words = fetch_words_for_display(word_ids)
     {player_id, words}
-  end
-
-  defp fetch_word_data(word_id) do
-    alias Mimimi.WortSchule
-
-    case WortSchule.get_complete_word(word_id) do
-      {:ok, word_data} ->
-        %{id: word_data.id, name: word_data.name, image_url: word_data.image_url}
-
-      {:error, _} ->
-        %{id: word_id, name: "?", image_url: nil}
-    end
   end
 end

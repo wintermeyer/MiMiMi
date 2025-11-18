@@ -443,6 +443,284 @@ defmodule MimimiWeb.CoreComponents do
   end
 
   @doc """
+  Renders a glassmorphism card container.
+
+  ## Examples
+
+      <.glass_card>
+        Content here
+      </.glass_card>
+
+      <.glass_card class="p-6">
+        Custom padding
+      </.glass_card>
+  """
+  attr :class, :string, default: nil
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  def glass_card(assigns) do
+    ~H"""
+    <div
+      class={[
+        "backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl shadow-2xl border border-gray-200/50 dark:border-gray-700/50",
+        @class
+      ]}
+      {@rest}
+    >
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a gradient icon badge.
+
+  ## Examples
+
+      <.gradient_icon_badge icon="🎮" />
+      <.gradient_icon_badge icon="👥" gradient="from-blue-500 to-cyan-500" />
+      <.gradient_icon_badge icon="🏆" size="lg" gradient="from-yellow-500 to-orange-500" />
+  """
+  attr :icon, :string, required: true
+  attr :gradient, :string, default: "from-purple-500 to-pink-500"
+  attr :size, :string, default: "md", values: ~w(sm md lg)
+  attr :class, :string, default: nil
+
+  def gradient_icon_badge(assigns) do
+    sizes = %{
+      "sm" => %{container: "w-12 h-12", icon: "text-2xl"},
+      "md" => %{container: "w-16 h-16", icon: "text-3xl"},
+      "lg" => %{container: "w-20 h-20", icon: "text-4xl"}
+    }
+
+    size_classes = Map.fetch!(sizes, assigns.size)
+    assigns = assign(assigns, :size_classes, size_classes)
+
+    ~H"""
+    <div class={[
+      "inline-flex items-center justify-center rounded-full bg-gradient-to-br shadow-lg mb-4",
+      @gradient,
+      @size_classes.container,
+      @class
+    ]}>
+      <span class={@size_classes.icon}>{@icon}</span>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a gradient button with shimmer effect.
+
+  ## Examples
+
+      <.gradient_button phx-click="action">Click me</.gradient_button>
+      <.gradient_button gradient="from-green-500 to-emerald-500">Success</.gradient_button>
+      <.gradient_button size="sm" gradient="from-blue-500 to-cyan-500">Small</.gradient_button>
+  """
+  attr :gradient, :string, default: "from-purple-600 via-purple-500 to-pink-500"
+  attr :hover_gradient, :string, default: "from-purple-700 via-purple-600 to-pink-600"
+  attr :shadow_color, :string, default: "shadow-purple-500/30"
+  attr :hover_shadow_color, :string, default: "shadow-purple-500/40"
+  attr :size, :string, default: "md", values: ~w(sm md lg)
+  attr :full_width, :boolean, default: true
+  attr :class, :string, default: nil
+  attr :rest, :global, include: ~w(disabled phx-click phx-value-id type)
+  slot :inner_block, required: true
+
+  def gradient_button(assigns) do
+    size_classes = %{
+      "sm" => "py-2 text-sm",
+      "md" => "py-4",
+      "lg" => "py-5 text-lg"
+    }
+
+    assigns = assign(assigns, :size_class, Map.fetch!(size_classes, assigns.size))
+
+    ~H"""
+    <button
+      class={[
+        "relative bg-gradient-to-r text-white rounded-2xl shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 font-semibold overflow-hidden group",
+        @gradient,
+        "hover:#{@hover_gradient}",
+        @shadow_color,
+        "hover:#{@hover_shadow_color}",
+        @size_class,
+        @full_width && "w-full",
+        @class
+      ]}
+      {@rest}
+    >
+      <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700">
+      </div>
+      <span class="relative">
+        {render_slot(@inner_block)}
+      </span>
+    </button>
+    """
+  end
+
+  @doc """
+  Renders a glassmorphism input field with gradient hover effect.
+
+  ## Examples
+
+      <.glass_input name="username" placeholder="Enter username" />
+      <.glass_input field={@form[:email]} type="email" gradient="from-blue-500 to-cyan-500" />
+  """
+  attr :id, :any, default: nil
+  attr :name, :any
+  attr :value, :any
+  attr :type, :string, default: "text"
+  attr :field, Phoenix.HTML.FormField
+  attr :gradient, :string, default: "from-purple-500 to-pink-500"
+  attr :placeholder, :string, default: nil
+  attr :class, :string, default: nil
+  attr :rest, :global
+
+  def glass_input(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
+    assigns
+    |> assign(field: nil, id: assigns.id || field.id)
+    |> assign_new(:name, fn -> field.name end)
+    |> assign_new(:value, fn -> field.value end)
+    |> glass_input()
+  end
+
+  def glass_input(assigns) do
+    ~H"""
+    <div class="relative group">
+      <div class={[
+        "absolute inset-0 bg-gradient-to-r rounded-xl opacity-0 group-hover:opacity-10 transition-opacity duration-300",
+        @gradient
+      ]}>
+      </div>
+      <input
+        type={@type}
+        name={@name}
+        id={@id}
+        value={Phoenix.HTML.Form.normalize_value(@type, @value)}
+        placeholder={@placeholder}
+        class={[
+          "relative w-full px-4 py-3.5 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-xl focus:border-purple-500 dark:focus:border-purple-400 focus:ring-4 focus:ring-purple-100 dark:focus:ring-purple-900/30 transition-all duration-200 dark:text-white outline-none",
+          @class
+        ]}
+        {@rest}
+      />
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a stat card with icon and value.
+
+  ## Examples
+
+      <.stat_card icon="👥" label="Aktive Spiele" value={@active_games} />
+      <.stat_card icon="⏳" label="Wartende Spiele" value={@waiting_games} gradient="from-blue-500 to-cyan-500" />
+  """
+  attr :icon, :string, required: true
+  attr :label, :string, required: true
+  attr :value, :any, required: true
+  attr :gradient, :string, default: "from-purple-500 to-pink-500"
+  attr :class, :string, default: nil
+
+  def stat_card(assigns) do
+    assigns = assign(assigns, :card_class, ["p-6 text-center", assigns[:class]])
+
+    ~H"""
+    <.glass_card class={@card_class}>
+      <div class={[
+        "inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br mb-4 shadow-lg",
+        @gradient
+      ]}>
+        <span class="text-3xl">{@icon}</span>
+      </div>
+      <div class="text-3xl font-bold text-gray-900 dark:text-white mb-1">
+        {@value}
+      </div>
+      <div class="text-sm text-gray-600 dark:text-gray-400">
+        {@label}
+      </div>
+    </.glass_card>
+    """
+  end
+
+  @doc """
+  Renders a player avatar with optional status indicator.
+
+  ## Examples
+
+      <.player_avatar avatar="🦊" />
+      <.player_avatar avatar="🐼" status={:picked} />
+      <.player_avatar avatar="🦁" status={:waiting} size="lg" />
+  """
+  attr :avatar, :string, required: true
+  attr :status, :atom, default: nil, values: [nil, :picked, :waiting, :online]
+  attr :size, :string, default: "md", values: ~w(sm md lg)
+  attr :class, :string, default: nil
+  attr :rest, :global
+
+  def player_avatar(assigns) do
+    sizes = %{
+      "sm" => "w-12 h-12 text-2xl",
+      "md" => "w-16 h-16 text-3xl",
+      "lg" => "w-20 h-20 text-4xl"
+    }
+
+    status_indicators = %{
+      picked: "✓",
+      waiting: "⏳",
+      online: "●"
+    }
+
+    assigns =
+      assigns
+      |> assign(:size_class, Map.fetch!(sizes, assigns.size))
+      |> assign(:status_indicator, Map.get(status_indicators, assigns.status))
+
+    ~H"""
+    <div class={["relative inline-block", @class]} {@rest}>
+      <div class={[
+        "flex items-center justify-center rounded-full bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30",
+        @size_class
+      ]}>
+        {@avatar}
+      </div>
+      <div
+        :if={@status_indicator}
+        class="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-br from-green-500 to-emerald-500 rounded-full flex items-center justify-center text-xs text-white shadow-lg"
+      >
+        {@status_indicator}
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a progress bar with gradient fill.
+
+  ## Examples
+
+      <.progress_bar value={75} />
+      <.progress_bar value={@percentage} gradient="from-green-500 to-emerald-500" />
+  """
+  attr :value, :integer, required: true
+  attr :gradient, :string, default: "from-purple-500 to-pink-500"
+  attr :class, :string, default: nil
+
+  def progress_bar(assigns) do
+    ~H"""
+    <div class={["w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden", @class]}>
+      <div
+        class={["h-full bg-gradient-to-r transition-all duration-500", @gradient]}
+        style={"width: #{@value}%"}
+      >
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
   Translates an error message using gettext.
   """
   def translate_error({msg, opts}) do

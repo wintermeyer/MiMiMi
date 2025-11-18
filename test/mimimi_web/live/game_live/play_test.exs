@@ -351,6 +351,129 @@ defmodule MimimiWeb.GameLive.PlayTest do
     end
   end
 
+  describe "Showing correct word after wrong pick" do
+    @tag :external_db
+    test "player who picked wrong sees correct word at round end", %{host: host} do
+      # Create a game with 1 round
+      {:ok, game} =
+        Games.create_game(host.id, %{
+          rounds_count: 1,
+          clues_interval: 9,
+          grid_size: 9,
+          word_types: ["Noun"]
+        })
+
+      # Create two players
+      {:ok, player1_user} = Accounts.get_or_create_user_by_session("player1_correct_word_test")
+      {:ok, player2_user} = Accounts.get_or_create_user_by_session("player2_correct_word_test")
+
+      {:ok, _player1} = Games.create_player(player1_user.id, game.id, %{avatar: "🐻"})
+      {:ok, _player2} = Games.create_player(player2_user.id, game.id, %{avatar: "🐘"})
+
+      # Start the game
+      {:ok, game} = Games.start_game(game)
+
+      # Get round 1
+      round = Games.get_current_round(game.id)
+
+      # Mount play views for both players
+      player1_conn =
+        build_conn()
+        |> Plug.Test.init_test_session(%{"session_id" => "player1_correct_word_test"})
+
+      player2_conn =
+        build_conn()
+        |> Plug.Test.init_test_session(%{"session_id" => "player2_correct_word_test"})
+
+      {:ok, view1, _html} = live(player1_conn, "/games/#{game.id}/current")
+      {:ok, view2, _html} = live(player2_conn, "/games/#{game.id}/current")
+
+      # Simulate keyword being revealed
+      send(view1.pid, {:keyword_revealed, 1, 5})
+      send(view2.pid, {:keyword_revealed, 1, 5})
+
+      # Player 1 picks the WRONG word (not the correct word_id)
+      wrong_word_id = Enum.find(round.possible_words_ids, &(&1 != round.word_id))
+
+      view1
+      |> element("button[phx-click='guess_word'][phx-value-word_id='#{wrong_word_id}']")
+      |> render_click()
+
+      # Player 2 picks the CORRECT word
+      view2
+      |> element("button[phx-click='guess_word'][phx-value-word_id='#{round.word_id}']")
+      |> render_click()
+
+      # Wait for all_players_picked and show_feedback_and_advance
+      :timer.sleep(100)
+
+      # Render the feedback screen for player 1 (who picked wrong)
+      html = render(view1)
+
+      # Player 1 should see the wrong pick indicator
+      assert html =~ "Leider falsch"
+      assert html =~ "❌"
+
+      # Player 1 should see the correct word displayed
+      # We need to fetch the correct word name to verify it's shown
+      correct_word = Mimimi.WortSchule.get_word(round.word_id)
+      assert html =~ correct_word.name
+      assert html =~ "Richtige Antwort"
+    end
+
+    @tag :external_db
+    test "player who picked correctly also sees correct word", %{host: host} do
+      # Create a game with 1 round
+      {:ok, game} =
+        Games.create_game(host.id, %{
+          rounds_count: 1,
+          clues_interval: 9,
+          grid_size: 9,
+          word_types: ["Noun"]
+        })
+
+      # Create one player
+      {:ok, player_user} = Accounts.get_or_create_user_by_session("player_correct_test")
+      {:ok, _player} = Games.create_player(player_user.id, game.id, %{avatar: "🐻"})
+
+      # Start the game
+      {:ok, game} = Games.start_game(game)
+
+      # Get round 1
+      round = Games.get_current_round(game.id)
+
+      # Mount play view
+      player_conn =
+        build_conn()
+        |> Plug.Test.init_test_session(%{"session_id" => "player_correct_test"})
+
+      {:ok, view, _html} = live(player_conn, "/games/#{game.id}/current")
+
+      # Simulate keyword being revealed
+      send(view.pid, {:keyword_revealed, 1, 5})
+
+      # Player picks the CORRECT word
+      view
+      |> element("button[phx-click='guess_word'][phx-value-word_id='#{round.word_id}']")
+      |> render_click()
+
+      # Wait for feedback
+      :timer.sleep(100)
+
+      # Render the feedback screen
+      html = render(view)
+
+      # Player should see success message
+      assert html =~ "Richtig!"
+      assert html =~ "✅"
+
+      # Player should also see the correct word with a different message
+      correct_word = Mimimi.WortSchule.get_word(round.word_id)
+      assert html =~ correct_word.name
+      assert html =~ "Du hast richtig getippt:"
+    end
+  end
+
   describe "Manual game stopping" do
     @tag :external_db
     test "player receives flash message when host stops game", %{

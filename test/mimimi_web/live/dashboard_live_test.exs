@@ -123,11 +123,11 @@ defmodule MimimiWeb.DashboardLiveTest do
       assert html =~ "Du bist dabei!"
 
       # Now start the game (this is what the host does)
+      # In test mode, this generates rounds synchronously and broadcasts both :game_started and :round_started
       {:ok, _game} = Games.start_game(game)
-      Games.broadcast_to_game(game.id, :game_started)
 
-      # Give LiveView a moment to process the broadcast
-      :timer.sleep(100)
+      # Give LiveView a moment to process the broadcasts
+      :timer.sleep(200)
 
       # Re-render the player view
       html = render(player_view)

@@ -31,10 +31,55 @@ defmodule Mimimi.WortSchule do
   end
 
   @doc """
+  Get complete word data for multiple words in a single batch query.
+  Much faster than calling get_complete_word/1 in a loop.
+
+  ## Examples
+
+      iex> WortSchule.get_complete_words_batch([123, 456])
+      %{
+        123 => %{id: 123, name: "Affe", keywords: [...], image_url: "..."},
+        456 => %{id: 456, name: "Baum", keywords: [...], image_url: "..."}
+      }
+
+      iex> WortSchule.get_complete_words_batch([])
+      %{}
+  """
+  def get_complete_words_batch([]), do: %{}
+
+  def get_complete_words_batch(word_ids) when is_list(word_ids) do
+    from(w in Word,
+      where: w.id in ^word_ids,
+      preload: [keywords: ^from(k in Word, order_by: k.name)]
+    )
+    |> Repo.all()
+    |> Enum.map(fn word -> {word.id, format_word(word)} end)
+    |> Enum.into(%{})
+  end
+
+  @doc """
   Get word by ID.
   """
   def get_word(id) do
     Repo.get(Word, id)
+  end
+
+  @doc """
+  Get multiple words by IDs in a single batch query.
+  Returns a map of word_id => word struct.
+
+  ## Examples
+
+      iex> WortSchule.get_words_batch([123, 456])
+      %{123 => %Word{id: 123, name: "Affe"}, 456 => %Word{id: 456, name: "Baum"}}
+  """
+  def get_words_batch([]), do: %{}
+
+  def get_words_batch(word_ids) when is_list(word_ids) do
+    from(w in Word, where: w.id in ^word_ids)
+    |> Repo.all()
+    |> Enum.map(fn word -> {word.id, word} end)
+    |> Enum.into(%{})
   end
 
   @doc """

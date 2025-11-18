@@ -1,4 +1,10 @@
 defmodule MimimiWeb.AvatarLive.Choose do
+  @moduledoc """
+  Avatar selection LiveView for players joining a game.
+
+  Players use this view to choose their avatar and name before joining a game lobby.
+  Validates the invitation code and handles error states gracefully.
+  """
   use MimimiWeb, :live_view
   alias Mimimi.Games
 
@@ -164,9 +170,6 @@ defmodule MimimiWeb.AvatarLive.Choose do
       <div class="w-full max-w-3xl">
         <%!-- Header --%>
         <div class="text-center mb-10">
-          <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 mb-4 shadow-lg">
-            <span class="text-4xl">🐾</span>
-          </div>
           <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
             Wähle dein Tier
           </h1>

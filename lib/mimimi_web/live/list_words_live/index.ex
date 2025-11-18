@@ -152,9 +152,6 @@ defmodule MimimiWeb.ListWordsLive.Index do
       <div class="w-full max-w-6xl mx-auto">
         <%!-- Glassmorphism Header --%>
         <div class="text-center mb-10">
-          <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 mb-4 shadow-lg">
-            <span class="text-4xl">📚</span>
-          </div>
           <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
             Wörterliste
           </h1>

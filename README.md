@@ -26,9 +26,15 @@ A mobile-first multiplayer word-guessing game built with Phoenix LiveView for Ge
 - Join via invitation link, QR code scan, or manual 6-digit code entry
 - Manual code entry form only appears when games are waiting for players (improved UX)
 - Select unique animal avatar (🐻🐘🦉🐸🦊🐰🦛🐱🦁🐼)
+- **Avatar Indicator**: Players see their avatar and current points in the top right corner during gameplay
 - Real-time gameplay with progressive keyword reveals
+- **Guaranteed Unique Words**: Each round features a different target word - no duplicate words across rounds in the same game
 - Immediate feedback (correct/wrong)
-- Live leaderboard with points
+- **Learning Feature**: After making a pick, all players see the correct answer with its image to reinforce learning
+  - Players who picked correctly see "Du hast richtig getippt:" (You guessed correctly)
+  - Players who picked wrong see "Richtige Antwort:" (Correct answer)
+  - Responsive layout: side-by-side on desktop, stacked on mobile
+- Live points tracking throughout the game
 - Final leaderboard displayed to all players at game end
 
 ### Multiplayer Features
@@ -77,14 +83,23 @@ See `CLAUDE.md` for complete design system documentation.
 1. **Database Layer** - All 7 tables migrated with proper indexes and foreign keys
 2. **Ecto Schemas** - User, Game, Player, Word, Keyword, Round, Pick
 3. **Context Layer** - Complete Games context with all CRUD operations and PubSub
-4. **Seed Data** - 65+ German words across 8 categories in einfache Sprache
+4. **WortSchule Integration** - Full integration with wort.schule database for German word data
 5. **Session Management** - Auto-create users based on session (no login required)
 6. **Security** - Host authentication with cryptographic tokens (prevents waiting room hijacking)
 7. **UI/UX Design** - Glassmorphism design system applied across all LiveViews
+8. **LiveView Components** - Complete gameplay, dashboard, avatar selection, and lobby views
+9. **Real-time Multiplayer** - Full game flow with progressive keyword reveals and synchronized state
+10. **Comprehensive Testing** - Integration tests covering complete 2-3 player game scenarios
 
-### 🚧 In Progress
+### ✅ Game is Fully Functional
 
-LiveView modules, routing, UI components, and game flow logic are next in the implementation queue.
+The game is now complete and working correctly! Comprehensive integration tests verify:
+- Two players completing a full 2-round game
+- Three players with different pick speeds
+- Mixed correct/wrong answers
+- Points accumulation across rounds
+- Proper game state transitions
+- Leaderboard calculation
 
 ## 🚀 Getting Started
 

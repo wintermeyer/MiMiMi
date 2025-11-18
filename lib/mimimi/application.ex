@@ -24,6 +24,8 @@ defmodule Mimimi.Application do
       {Registry, keys: :unique, name: Mimimi.GameRegistry},
       # Dynamic supervisor for game server instances
       {DynamicSupervisor, name: Mimimi.GameServerSupervisor, strategy: :one_for_one},
+      # Task supervisor for async operations like round generation
+      {Task.Supervisor, name: Mimimi.TaskSupervisor},
       # Background worker to cleanup timed-out lobbies
       Mimimi.GameCleanupWorker,
       # WortSchule image URL cache (ETS-based, 24-hour TTL)

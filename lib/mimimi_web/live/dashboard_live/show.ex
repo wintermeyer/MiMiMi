@@ -1,4 +1,12 @@
 defmodule MimimiWeb.DashboardLive.Show do
+  @moduledoc """
+  Host dashboard LiveView for managing game state and viewing player progress.
+
+  Provides different views based on game state:
+  - Lobby: Shows waiting players and allows game start
+  - Running: Displays real-time round analytics and player picks
+  - Game Over: Shows final leaderboard and player statistics
+  """
   use MimimiWeb, :live_view
   alias Mimimi.Games
 
@@ -174,29 +182,22 @@ defmodule MimimiWeb.DashboardLive.Show do
   defp fetch_keywords(keyword_ids) do
     alias Mimimi.WortSchule
 
-    Enum.map(keyword_ids, fn kw_id ->
-      case WortSchule.get_word(kw_id) do
-        %{id: id, name: name} ->
-          %{id: id, name: name}
+    # Batch fetch all keywords at once (much faster than N individual queries)
+    keywords_map = WortSchule.get_words_batch(keyword_ids)
 
+    Enum.map(keyword_ids, fn kw_id ->
+      case Map.get(keywords_map, kw_id) do
         nil ->
           %{id: kw_id, name: "?"}
+
+        keyword ->
+          %{id: keyword.id, name: keyword.name}
       end
     end)
   end
 
   defp fetch_possible_words(word_ids) do
-    alias Mimimi.WortSchule
-
-    Enum.map(word_ids, fn word_id ->
-      case WortSchule.get_complete_word(word_id) do
-        {:ok, data} ->
-          %{id: data.id, name: data.name, image_url: data.image_url}
-
-        {:error, _} ->
-          %{id: word_id, name: "?", image_url: nil}
-      end
-    end)
+    Games.fetch_words_for_display(word_ids)
   end
 
   @impl true
@@ -283,6 +284,13 @@ defmodule MimimiWeb.DashboardLive.Show do
     {:noreply,
      socket
      |> put_flash(:error, "Das Spiel ist zu Ende. Es hat zu lange gedauert.")
+     |> push_navigate(to: ~p"/")}
+  end
+
+  def handle_info(:round_generation_failed, socket) do
+    {:noreply,
+     socket
+     |> put_flash(:error, "Fehler beim Erstellen der Spielrunden. Bitte versuche es erneut.")
      |> push_navigate(to: ~p"/")}
   end
 
@@ -643,9 +651,6 @@ defmodule MimimiWeb.DashboardLive.Show do
         <%= if assigns[:current_round] do %>
           <%!-- Round information --%>
           <div class="text-center mb-8">
-            <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 mb-4 shadow-lg">
-              <span class="text-4xl">🎯</span>
-            </div>
             <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
               Runde {@current_round.position} von {@game.rounds_count}
             </h1>
@@ -1014,9 +1019,6 @@ defmodule MimimiWeb.DashboardLive.Show do
           </div>
         <% else %>
           <div class="text-center mb-10">
-            <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 mb-4 shadow-lg animate-pulse">
-              <span class="text-4xl">⏳</span>
-            </div>
             <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
               Spielleiter Dashboard
             </h1>
@@ -1048,9 +1050,6 @@ defmodule MimimiWeb.DashboardLive.Show do
     <div class="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900">
       <div class="w-full max-w-4xl">
         <div class="text-center mb-10">
-          <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 mb-4 shadow-lg">
-            <span class="text-4xl">🏆</span>
-          </div>
           <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
             Spiel fertig!
           </h1>

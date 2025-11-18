@@ -158,9 +158,6 @@ defmodule MimimiWeb.DebugLive.Index do
       <div class="w-full max-w-4xl mx-auto">
         <%!-- Header --%>
         <div class="text-center mb-10">
-          <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 mb-4 shadow-lg">
-            <span class="text-4xl">🔍</span>
-          </div>
           <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
             WortSchule Debug
           </h1>
