@@ -210,5 +210,168 @@ defmodule MimimiWeb.DashboardLive.ShowTest do
       # but we can verify the structure exists
       assert html =~ ~r/class="[^"]*correct-picks/
     end
+
+    test "host sees new game button on game over screen", %{
+      conn: conn,
+      player1: player1,
+      game: game
+    } do
+      # Start the game and generate rounds
+      {:ok, game} = Games.start_game(game)
+      round = Games.get_current_round(game.id)
+
+      # Simulate a pick
+      {:ok, {_pick1, _}} =
+        Games.create_pick(round.id, player1.id, %{
+          word_id: round.word_id,
+          time: 5,
+          keywords_shown: 2,
+          is_correct: true
+        })
+
+      # End the game
+      {:ok, _game} = Games.update_game_state(game, "game_over")
+
+      # Host views the game over page
+      host_token_key = "host_token_#{game.id}"
+
+      conn =
+        conn
+        |> Plug.Test.init_test_session(%{
+          "session_id" => "host_session_id",
+          host_token_key => game.host_token
+        })
+
+      {:ok, _view, html} = live(conn, ~p"/dashboard/#{game.id}")
+
+      # Host should see the new game button
+      assert html =~ "Neues Spiel mit denselben Spielern"
+      assert html =~ "phx-click=\"start_new_game\""
+    end
+
+    test "player does not see new game button on game over screen", %{
+      conn: conn,
+      player1: player1,
+      game: game
+    } do
+      # Start the game and generate rounds
+      {:ok, game} = Games.start_game(game)
+      round = Games.get_current_round(game.id)
+
+      # Simulate a pick
+      {:ok, {_pick1, _}} =
+        Games.create_pick(round.id, player1.id, %{
+          word_id: round.word_id,
+          time: 5,
+          keywords_shown: 2,
+          is_correct: true
+        })
+
+      # End the game
+      {:ok, _game} = Games.update_game_state(game, "game_over")
+
+      # Player views the game over page (not host)
+      conn =
+        conn
+        |> Plug.Test.init_test_session(%{
+          "session_id" => "player1_session_id"
+        })
+
+      {:ok, _view, html} = live(conn, ~p"/dashboard/#{game.id}")
+
+      # Player should NOT see the new game button
+      refute html =~ "Neues Spiel mit denselben Spielern"
+      refute html =~ "phx-click=\"start_new_game\""
+    end
+
+    test "restart button creates new game and automatically starts it in round 1", %{
+      conn: conn,
+      player1: player1,
+      player2: player2,
+      game: game
+    } do
+      {:ok, game} = Games.start_game(game)
+      round = Games.get_current_round(game.id)
+
+      {:ok, {_pick1, _}} =
+        Games.create_pick(round.id, player1.id, %{
+          word_id: round.word_id,
+          time: 5,
+          keywords_shown: 2,
+          is_correct: true
+        })
+
+      {:ok, {_pick2, _}} =
+        Games.create_pick(round.id, player2.id, %{
+          word_id: round.word_id,
+          time: 6,
+          keywords_shown: 3,
+          is_correct: true
+        })
+
+      {:ok, _game} = Games.update_game_state(game, "game_over")
+
+      host_token_key = "host_token_#{game.id}"
+
+      conn =
+        conn
+        |> Plug.Test.init_test_session(%{
+          "session_id" => "host_session_id",
+          host_token_key => game.host_token
+        })
+
+      {:ok, view, _html} = live(conn, ~p"/dashboard/#{game.id}")
+
+      Mimimi.Presence.track(
+        self(),
+        "game:#{game.id}:players",
+        "player_#{player1.user_id}",
+        %{
+          user_id: player1.user_id,
+          game_id: game.id,
+          joined_at: System.system_time(:second)
+        }
+      )
+
+      Mimimi.Presence.track(
+        self(),
+        "game:#{game.id}:players",
+        "player_#{player2.user_id}",
+        %{
+          user_id: player2.user_id,
+          game_id: game.id,
+          joined_at: System.system_time(:second)
+        }
+      )
+
+      :timer.sleep(100)
+
+      view
+      |> element("button", "Neues Spiel mit denselben Spielern")
+      |> render_click()
+
+      all_games = Mimimi.Repo.all(Mimimi.Games.Game)
+      new_game = Enum.find(all_games, fn g -> g.id != game.id end)
+
+      assert new_game
+      assert new_game.rounds_count == game.rounds_count
+      assert new_game.clues_interval == game.clues_interval
+      assert new_game.grid_size == game.grid_size
+      assert new_game.word_types == game.word_types
+
+      new_players = Games.list_players_for_game(new_game.id)
+      assert length(new_players) == 2
+      assert Enum.any?(new_players, &(&1.avatar == "🦁"))
+      assert Enum.any?(new_players, &(&1.avatar == "🐘"))
+
+      assert new_game.state == "game_running"
+
+      new_round = Games.get_current_round(new_game.id)
+      assert new_round
+      assert new_round.state == "playing"
+      assert new_round.position == 1
+
+      assert_redirect(view, ~p"/game/#{new_game.id}/set-host-token")
+    end
   end
 end

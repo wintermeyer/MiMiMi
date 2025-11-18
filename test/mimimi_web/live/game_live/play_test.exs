@@ -70,6 +70,22 @@ defmodule MimimiWeb.GameLive.PlayTest do
     end
   end
 
+  describe "Game play page - game running but rounds not ready" do
+    test "shows loading state when game is running but no rounds are ready yet", %{
+      player_conn: player_conn,
+      game: game
+    } do
+      # Start the game (game_running state) but don't let rounds generate
+      Games.update_game_state(game, "game_running")
+
+      # Mount the play view as a player
+      {:ok, _view, html} = live(player_conn, "/games/#{game.id}/current")
+
+      # Should not redirect - should show a loading/waiting message instead
+      assert html =~ "Runden werden vorbereitet"
+    end
+  end
+
   describe "Game play page - first round keyword display" do
     @tag :skip
     test "displays first keyword after round timer starts", %{

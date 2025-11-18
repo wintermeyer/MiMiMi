@@ -54,6 +54,53 @@ defmodule Mimimi.Games do
   end
 
   @doc """
+  Creates a new game with the same settings as the original game and copies all players.
+  This is used to start a new round with the same participants.
+  """
+  def create_new_game_with_players(%Game{} = original_game, online_user_ids \\ nil) do
+    players_with_avatars =
+      from(p in Player,
+        where: p.game_id == ^original_game.id,
+        select: %{user_id: p.user_id, avatar: p.avatar}
+      )
+      |> Repo.all()
+
+    players_to_add =
+      if online_user_ids do
+        Enum.filter(players_with_avatars, fn p ->
+          to_string(p.user_id) in online_user_ids
+        end)
+      else
+        players_with_avatars
+      end
+
+    game_attrs = %{
+      rounds_count: original_game.rounds_count,
+      grid_size: original_game.grid_size,
+      clues_interval: original_game.clues_interval,
+      word_types: original_game.word_types
+    }
+
+    case create_game(original_game.host_user_id, game_attrs) do
+      {:ok, new_game} ->
+        player_results =
+          Enum.map(players_to_add, fn player_data ->
+            create_player(player_data.user_id, new_game.id, %{avatar: player_data.avatar})
+          end)
+
+        if Enum.all?(player_results, fn result -> match?({:ok, _}, result) end) do
+          broadcast_to_game(original_game.id, {:new_game_started, new_game.id})
+          {:ok, new_game}
+        else
+          {:error, :failed_to_create_players}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
   Validates if there are enough words available for the given game configuration.
   Returns {:ok, %{target_words: count, total_words: count}} if valid,
   or {:error, reason} if insufficient words are available.

@@ -85,9 +85,11 @@ defmodule MimimiWeb.GameLive.Play do
   defp load_current_round(socket, game_id) do
     case Games.get_current_round(game_id) do
       nil ->
+        # Game is running but rounds haven't been generated yet (async task)
+        # Show loading state instead of redirecting
         socket
-        |> put_flash(:error, "Keine aktuelle Runde gefunden.")
-        |> push_navigate(to: ~p"/")
+        |> assign(:current_round, nil)
+        |> assign(:rounds_loading, true)
 
       round ->
         load_round_data(socket, game_id, round)
@@ -312,6 +314,13 @@ defmodule MimimiWeb.GameLive.Play do
      socket
      |> put_flash(:info, "Das Spiel wurde vom Spielleiter beendet.")
      |> push_navigate(to: ~p"/dashboard/#{socket.assigns.game.id}")}
+  end
+
+  def handle_info({:new_game_started, new_game_id}, socket) do
+    {:noreply,
+     socket
+     |> put_flash(:info, "Ein neues Spiel wurde gestartet!")
+     |> push_navigate(to: ~p"/games/#{new_game_id}/current")}
   end
 
   @impl true

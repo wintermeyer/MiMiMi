@@ -69,6 +69,23 @@ defmodule MimimiWeb.DashboardLive.Show do
           Mimimi.PresenceMonitor.monitor_game_host(game_id)
         end
 
+        # Track player presence for players viewing the game-over screen
+        # This allows the host to see which players are still online for a rematch
+        player = Games.get_player_by_game_and_user(game_id, socket.assigns.current_user.id)
+
+        if player && game.state == "game_over" do
+          Mimimi.Presence.track(
+            self(),
+            "game:#{game_id}:players",
+            "player_#{socket.assigns.current_user.id}",
+            %{
+              user_id: socket.assigns.current_user.id,
+              game_id: game_id,
+              joined_at: System.system_time(:second)
+            }
+          )
+        end
+
         # Subscribe to player presence changes to show disconnections in real-time
         Phoenix.PubSub.subscribe(Mimimi.PubSub, "game:#{game_id}:players")
 
@@ -392,6 +409,19 @@ defmodule MimimiWeb.DashboardLive.Show do
     {:noreply, socket}
   end
 
+  def handle_info({:new_game_started, new_game_id}, socket) do
+    # Players get redirected to the new game
+    # The host will be redirected by the handle_event, but players need this handler
+    if socket.assigns.game.host_user_id != socket.assigns.current_user.id do
+      {:noreply,
+       socket
+       |> put_flash(:info, "Ein neues Spiel wurde gestartet!")
+       |> push_navigate(to: ~p"/games/#{new_game_id}/current")}
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_info(
         %Phoenix.Socket.Broadcast{
           event: "presence_diff",
@@ -450,6 +480,37 @@ defmodule MimimiWeb.DashboardLive.Show do
   def handle_event("stop_modal_propagation", _params, socket) do
     # Prevent modal from closing when clicking inside it
     {:noreply, socket}
+  end
+
+  def handle_event("start_new_game", _params, socket) do
+    game = socket.assigns.game
+    current_user = socket.assigns.current_user
+    online_player_ids = socket.assigns.online_player_ids
+
+    if game.host_user_id != current_user.id do
+      {:noreply, put_flash(socket, :error, "Nur der Spielleiter kann ein neues Spiel starten.")}
+    else
+      online_user_ids =
+        if MapSet.size(online_player_ids) > 0 do
+          MapSet.to_list(online_player_ids)
+        else
+          nil
+        end
+
+      case Games.create_new_game_with_players(game, online_user_ids) do
+        {:ok, new_game} ->
+          case Games.start_game(new_game) do
+            {:ok, started_game} ->
+              {:noreply, redirect(socket, to: ~p"/game/#{started_game.id}/set-host-token")}
+
+            {:error, _reason} ->
+              {:noreply, put_flash(socket, :error, "Fehler beim Starten des neuen Spiels.")}
+          end
+
+        {:error, _reason} ->
+          {:noreply, put_flash(socket, :error, "Fehler beim Erstellen des neuen Spiels.")}
+      end
+    end
   end
 
   defp generate_qr_code(url) do
@@ -1236,6 +1297,30 @@ defmodule MimimiWeb.DashboardLive.Show do
           </div>
         <% end %>
 
+        <%!-- New Game Button (only for host) --%>
+        <%= if @game.host_user_id == @current_user.id do %>
+          <div class="mb-4">
+            <button
+              type="button"
+              phx-click="start_new_game"
+              class="relative w-full text-lg font-semibold py-4 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-2xl shadow-xl shadow-green-500/30 hover:shadow-2xl hover:shadow-green-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 overflow-hidden group"
+            >
+              <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700">
+              </div>
+              <span class="relative">🔄 Neues Spiel mit denselben Spielern</span>
+            </button>
+            <%= if all_players_online?(@players, @online_player_ids) do %>
+              <p class="text-xs text-center text-green-600 dark:text-green-400 mt-2 font-medium">
+                ✓ Alle Spieler sind noch online
+              </p>
+            <% else %>
+              <p class="text-xs text-center text-orange-600 dark:text-orange-400 mt-2 font-medium">
+                ⚠ Nicht alle Spieler sind noch online. Es werden nur die online Spieler mitgenommen.
+              </p>
+            <% end %>
+          </div>
+        <% end %>
+
         <a
           href="/game/leave"
           class="block w-full text-center text-lg font-semibold py-4 bg-gradient-to-r from-purple-600 via-purple-500 to-pink-500 hover:from-purple-700 hover:via-purple-600 hover:to-pink-600 text-white rounded-2xl shadow-xl shadow-purple-500/30 hover:shadow-2xl hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
@@ -1245,5 +1330,11 @@ defmodule MimimiWeb.DashboardLive.Show do
       </div>
     </div>
     """
+  end
+
+  defp all_players_online?(players, online_player_ids) do
+    # Convert player user_ids to strings for comparison with presence tracking
+    player_user_ids = MapSet.new(players, &to_string(&1.user_id))
+    MapSet.equal?(player_user_ids, online_player_ids)
   end
 end

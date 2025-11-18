@@ -681,4 +681,101 @@ defmodule Mimimi.GamesTest do
              "Expected 3 unique target words, but got #{length(unique_word_ids)}. Word IDs: #{inspect(rounds)}"
     end
   end
+
+  describe "create_new_game_with_players/1" do
+    setup do
+      {:ok, host_user} = Accounts.get_or_create_user_by_session("host_session_id")
+      {:ok, player1_user} = Accounts.get_or_create_user_by_session("player1_session_id")
+      {:ok, player2_user} = Accounts.get_or_create_user_by_session("player2_session_id")
+
+      {:ok, game} =
+        Games.create_game(host_user.id, %{
+          rounds_count: 5,
+          clues_interval: 12,
+          grid_size: 4,
+          word_types: ["Noun", "Verb"]
+        })
+
+      # Add players with their avatars
+      {:ok, player1} = Games.create_player(player1_user.id, game.id, %{avatar: "🐻"})
+      {:ok, player2} = Games.create_player(player2_user.id, game.id, %{avatar: "🦊"})
+
+      # Mark game as over
+      Games.update_game_state(game, "game_over")
+
+      %{
+        host_user: host_user,
+        original_game: game,
+        player1: player1,
+        player2: player2,
+        player1_user: player1_user,
+        player2_user: player2_user
+      }
+    end
+
+    test "creates a new game with same settings", %{
+      host_user: host_user,
+      original_game: original_game
+    } do
+      {:ok, new_game} = Games.create_new_game_with_players(original_game)
+
+      # New game should have same settings
+      assert new_game.host_user_id == host_user.id
+      assert new_game.rounds_count == original_game.rounds_count
+      assert new_game.clues_interval == original_game.clues_interval
+      assert new_game.grid_size == original_game.grid_size
+      assert new_game.word_types == original_game.word_types
+
+      # But should be a different game with fresh state
+      assert new_game.id != original_game.id
+      assert new_game.state == "waiting_for_players"
+    end
+
+    test "copies all players with their avatars", %{
+      original_game: original_game,
+      player1_user: player1_user,
+      player2_user: player2_user
+    } do
+      {:ok, new_game} = Games.create_new_game_with_players(original_game)
+
+      # Get players from new game
+      new_game_with_players = Games.get_game_with_players(new_game.id)
+      new_players = new_game_with_players.players
+
+      # Should have same number of players
+      assert length(new_players) == 2
+
+      # Check players have correct user_ids and avatars
+      player1_new = Enum.find(new_players, &(&1.user_id == player1_user.id))
+      player2_new = Enum.find(new_players, &(&1.user_id == player2_user.id))
+
+      assert player1_new != nil
+      assert player1_new.avatar == "🐻"
+
+      assert player2_new != nil
+      assert player2_new.avatar == "🦊"
+    end
+
+    test "players in new game have zero points", %{original_game: original_game} do
+      {:ok, new_game} = Games.create_new_game_with_players(original_game)
+
+      new_game_with_players = Games.get_game_with_players(new_game.id)
+
+      # All players should start with 0 points
+      Enum.each(new_game_with_players.players, fn player ->
+        assert player.points == 0
+      end)
+    end
+
+    test "creates new invitation code", %{original_game: original_game} do
+      {:ok, new_game} = Games.create_new_game_with_players(original_game)
+
+      original_short_code = Games.get_short_code_for_game(original_game.id)
+      new_short_code = Games.get_short_code_for_game(new_game.id)
+
+      # Should have different invitation codes
+      assert new_short_code != original_short_code
+      assert String.length(new_short_code) == 6
+    end
+  end
 end

@@ -48,6 +48,13 @@ A mobile-first multiplayer word-guessing game built with Phoenix LiveView for Ge
 - Synchronized game state across all devices
 - Active games counter in footer
 - **Host Disconnect Handling**: When the game host closes their browser, all players are automatically redirected to the home page with an informative flash message
+- **Quick Rematch/Restart**: After game completion, the host can instantly start a new game with the same players by clicking "Neues Spiel mit denselben Spielern" button on the game-over screen
+  - Game automatically starts and jumps straight to round 1 with countdown running
+  - All online players are automatically redirected to the new game and see a loading state while rounds are being generated
+  - Once rounds are ready, players automatically see round 1 gameplay screen
+  - Host is redirected to their dashboard view showing the active game
+  - Players keep their original avatars in the rematch
+  - Host sees status of online/offline players before starting
 
 ### Word List Page
 - Browse all words from WortSchule database that have keywords and images
