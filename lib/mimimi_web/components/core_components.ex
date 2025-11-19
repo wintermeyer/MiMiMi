@@ -771,7 +771,7 @@ defmodule MimimiWeb.CoreComponents do
 
   def checkbox_button(assigns) do
     ~H"""
-    <label class={["relative cursor-pointer group", @class]}>
+    <label class={["relative cursor-pointer group/checkbox", @class]}>
       <input
         type="checkbox"
         id={@id}
@@ -788,14 +788,15 @@ defmodule MimimiWeb.CoreComponents do
         "hover:border-gray-300 dark:hover:border-gray-600"
       ]}>
         <div class={[
-          "absolute inset-0 bg-gradient-to-r transition-opacity duration-200",
-          "opacity-0 peer-checked:opacity-100",
+          "absolute inset-0 bg-gradient-to-r transition-opacity duration-200 opacity-0",
+          "group-has-[:checked]/checkbox:opacity-100",
           @gradient
         ]}>
         </div>
         <span class={[
           "relative z-10 font-semibold transition-colors duration-200",
-          "text-gray-700 dark:text-gray-300 peer-checked:text-white"
+          "text-gray-700 dark:text-gray-300",
+          "group-has-[:checked]/checkbox:text-white"
         ]}>
           {@label}
         </span>
@@ -822,7 +823,7 @@ defmodule MimimiWeb.CoreComponents do
 
   def radio_button(assigns) do
     ~H"""
-    <label class={["relative cursor-pointer group", @class]}>
+    <label class={["relative cursor-pointer group/radio", @class]}>
       <input
         type="radio"
         name={@name}
@@ -838,14 +839,15 @@ defmodule MimimiWeb.CoreComponents do
         "hover:border-gray-300 dark:hover:border-gray-600"
       ]}>
         <div class={[
-          "absolute inset-0 bg-gradient-to-r transition-opacity duration-200",
-          "opacity-0 peer-checked:opacity-100",
+          "absolute inset-0 bg-gradient-to-r transition-opacity duration-200 opacity-0",
+          "group-has-[:checked]/radio:opacity-100",
           @gradient
         ]}>
         </div>
         <span class={[
           "relative z-10 font-semibold transition-colors duration-200",
-          "text-gray-700 dark:text-gray-300 peer-checked:text-white"
+          "text-gray-700 dark:text-gray-300",
+          "group-has-[:checked]/radio:text-white"
         ]}>
           {@label}
         </span>
