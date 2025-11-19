@@ -241,3 +241,12 @@ If static files (like the BMBFSFJ logo in the footer) aren't displaying on produ
    sudo systemctl restart nginx
    ```
 
+## Logging
+
+View Real-time Logs on production
+
+### Watch logs as they happen
+sudo journalctl -u mimimi -f
+
+### Or last 200 lines
+sudo journalctl -u mimimi -n 200
