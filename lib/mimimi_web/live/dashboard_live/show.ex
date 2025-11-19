@@ -340,6 +340,13 @@ defmodule MimimiWeb.DashboardLive.Show do
     |> then(&{:noreply, &1})
   end
 
+  def handle_info(:round_timeout, socket) do
+    # Round timeout triggered - all keywords have finished their countdown
+    # The game server will handle advancing to the next round
+    # Dashboard just needs to maintain current state and wait for :round_started
+    {:noreply, socket}
+  end
+
   def handle_info(:round_started, socket) do
     case Games.get_current_round(socket.assigns.game.id) do
       nil ->
