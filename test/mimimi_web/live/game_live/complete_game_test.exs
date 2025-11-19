@@ -450,5 +450,129 @@ defmodule MimimiWeb.GameLive.CompleteGameTest do
       assert hd(leaderboard).id == player2.id
       assert hd(leaderboard).points == 5
     end
+
+    test "2-player game advances to next round when one player doesn't pick before timeout" do
+      # ========================================
+      # SETUP
+      # ========================================
+      {:ok, host} = Accounts.get_or_create_user_by_session("host_no_pick")
+      {:ok, p1_user} = Accounts.get_or_create_user_by_session("p1_no_pick")
+      {:ok, p2_user} = Accounts.get_or_create_user_by_session("p2_no_pick")
+
+      {:ok, game} =
+        Games.create_game(host.id, %{
+          rounds_count: 2,
+          clues_interval: 6,
+          grid_size: 9,
+          word_types: ["Noun"]
+        })
+
+      {:ok, player1} = Games.create_player(p1_user.id, game.id, %{avatar: "🐻"})
+      {:ok, player2} = Games.create_player(p2_user.id, game.id, %{avatar: "🐘"})
+
+      {:ok, game} = Games.start_game(game)
+      :timer.sleep(500)
+
+      p1_conn = build_conn() |> Plug.Test.init_test_session(%{"session_id" => "p1_no_pick"})
+      p2_conn = build_conn() |> Plug.Test.init_test_session(%{"session_id" => "p2_no_pick"})
+
+      {:ok, p1_view, _} = live(p1_conn, "/games/#{game.id}/current")
+      {:ok, p2_view, _} = live(p2_conn, "/games/#{game.id}/current")
+
+      # ========================================
+      # ROUND 1: Player 1 picks, Player 2 doesn't
+      # ========================================
+      round1 = Games.get_current_round(game.id)
+      assert round1.position == 1
+
+      correct_word_id = round1.word_id
+
+      # Reveal first keyword
+      send(p1_view.pid, {:keyword_revealed, 1, 6})
+      send(p2_view.pid, {:keyword_revealed, 1, 6})
+      :timer.sleep(50)
+
+      # Player 1 picks CORRECT
+      p1_view
+      |> element("button[phx-click='guess_word'][phx-value-word_id='#{correct_word_id}']")
+      |> render_click()
+
+      :timer.sleep(100)
+
+      # Player 1 should see "waiting for others" since player 2 hasn't picked
+      p1_html = render(p1_view)
+      assert p1_html =~ "Warte auf andere Spieler"
+
+      # Player 2 does NOT pick - simulate round timeout
+      # Send round_timeout to both players (this would come from GameServer)
+      send(p1_view.pid, :round_timeout)
+      send(p2_view.pid, :round_timeout)
+
+      # Wait for advancement delay
+      :timer.sleep(150)
+
+      # Verify round 1 is finished
+      round1_updated = Repo.get!(Mimimi.Games.Round, round1.id)
+      assert round1_updated.state == "finished"
+
+      # Verify player 1 got points, player 2 got 0
+      player1_updated = Repo.get!(Games.Player, player1.id)
+      player2_updated = Repo.get!(Games.Player, player2.id)
+
+      assert player1_updated.points == 5, "Player 1 should have 5 points"
+      assert player2_updated.points == 0, "Player 2 should have 0 points (didn't pick)"
+
+      # ========================================
+      # Verify we advanced to ROUND 2, NOT repeated ROUND 1
+      # ========================================
+      :timer.sleep(500)
+
+      round2 = Games.get_current_round(game.id)
+      assert round2 != nil, "Round 2 should exist"
+      assert round2.position == 2, "Should be round 2, not repeated round 1"
+      assert round2.state == "playing"
+      assert round2.id != round1.id, "Should be a different round"
+
+      # Verify both players are now on round 2
+      p1_html = render(p1_view)
+      p2_html = render(p2_view)
+
+      assert p1_html =~ "Runde 2 von 2"
+      assert p2_html =~ "Runde 2 von 2"
+
+      # ========================================
+      # ROUND 2: Complete normally to verify game continues
+      # ========================================
+      correct_word_id_r2 = round2.word_id
+
+      # Reveal second keyword (at 12 seconds total = 2 keywords shown = 3 points)
+      send(p1_view.pid, {:keyword_revealed, 2, 12})
+      send(p2_view.pid, {:keyword_revealed, 2, 12})
+      :timer.sleep(50)
+
+      # Both players pick correctly
+      p1_view
+      |> element("button[phx-click='guess_word'][phx-value-word_id='#{correct_word_id_r2}']")
+      |> render_click()
+
+      :timer.sleep(100)
+
+      p2_view
+      |> element("button[phx-click='guess_word'][phx-value-word_id='#{correct_word_id_r2}']")
+      |> render_click()
+
+      :timer.sleep(3500)
+
+      # Verify game is over
+      game_updated = Repo.get!(Games.Game, game.id)
+      assert game_updated.state == "game_over"
+
+      # Verify final scores
+      player1_final = Repo.get!(Games.Player, player1.id)
+      player2_final = Repo.get!(Games.Player, player2.id)
+
+      assert player1_final.points == 8, "Player 1: 5 (round 1) + 3 (round 2) = 8 points"
+      assert player2_final.points == 3, "Player 2: 0 (round 1) + 3 (round 2) = 3 points"
+    end
   end
 end

@@ -14,11 +14,24 @@ defmodule MimimiWeb.GameLive.Play do
   require Logger
 
   @impl true
-  def mount(%{"id" => game_id}, _session, socket) do
+  def mount(%{"id" => game_id} = params, _session, socket) do
     game = Games.get_game_with_players(game_id)
     user = socket.assigns.current_user
 
-    player = Games.get_player_by_game_and_user(game_id, user.id)
+    # Try to get player by user ID first (normal case)
+    # If not found, try to get player by session token (reconnection case)
+    player =
+      case Games.get_player_by_game_and_user(game_id, user.id) do
+        nil ->
+          # Player not found by user, try session token for reconnection
+          case Map.get(params, "session_token") do
+            nil -> nil
+            session_token -> Games.get_player_by_session(game_id, session_token)
+          end
+
+        p ->
+          p
+      end
 
     socket =
       cond do
@@ -42,11 +55,15 @@ defmodule MimimiWeb.GameLive.Play do
   defp mount_player_game(socket, game, player, game_id, user_id) do
     socket = maybe_subscribe_to_game(socket, game_id, game.state, user_id)
 
+    # Get initial online status
+    online_players = Games.get_players_online_status(game_id)
+
     socket =
       socket
       |> assign(:game, game)
       |> assign(:player, player)
       |> assign(:pending_players, MapSet.new())
+      |> assign(:online_players, online_players)
       |> assign(:page_title, "Spiel")
       |> assign(:rounds_loading, false)
 
@@ -65,6 +82,9 @@ defmodule MimimiWeb.GameLive.Play do
       if game_state == "waiting_for_players" do
         Phoenix.PubSub.subscribe(Mimimi.PubSub, "player_presence:#{game_id}:#{user_id}")
       end
+
+      # Subscribe to player presence changes to update online status
+      Phoenix.PubSub.subscribe(Mimimi.PubSub, "presence:game:#{game_id}:players")
 
       # Track player presence so host can see when players disconnect
       Mimimi.Presence.track(
@@ -230,6 +250,13 @@ defmodule MimimiWeb.GameLive.Play do
     {:noreply, assign(socket, :game, game)}
   end
 
+  def handle_info({:presence, _presence_event}, socket) do
+    # Update online players status when presence changes (someone joins or leaves)
+    game_id = socket.assigns.game.id
+    online_players = Games.get_players_online_status(game_id)
+    {:noreply, assign(socket, :online_players, online_players)}
+  end
+
   def handle_info({:keyword_revealed, revealed_count, time_elapsed}, socket) do
     keywords_shown = min(revealed_count, length(socket.assigns.keywords))
     revealed_keywords = Enum.take(socket.assigns.keywords, keywords_shown)
@@ -301,7 +328,8 @@ defmodule MimimiWeb.GameLive.Play do
     # Advance to next round after a brief delay to allow system to settle
     # The show_feedback_and_advance handler checks if round is still playing,
     # so multiple calls (from timeout + all_players_picked) are safe
-    {:noreply, Process.send_after(self(), :show_feedback_and_advance, 100)}
+    Process.send_after(self(), :show_feedback_and_advance, 100)
+    {:noreply, socket}
   end
 
   def handle_info(:round_started, socket) do
@@ -445,10 +473,27 @@ defmodule MimimiWeb.GameLive.Play do
               </h2>
               <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
                 <%= for player <- @game.players do %>
-                  <div class="relative flex flex-col items-center justify-center p-3 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl aspect-square transition-all duration-300 hover:border-purple-300 dark:hover:border-purple-600 hover:shadow-md overflow-hidden group">
+                  <% is_online = MapSet.member?(@online_players, player.user_id) %>
+                  <div class={[
+                    "relative flex flex-col items-center justify-center p-3 border-2 rounded-2xl aspect-square transition-all duration-300 overflow-hidden group",
+                    if(is_online,
+                      do:
+                        "bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-600 hover:shadow-md",
+                      else:
+                        "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 opacity-60"
+                    )
+                  ]}>
                     <div class="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
                     </div>
                     <span class="relative text-6xl">{player.avatar}</span>
+                    <%= if !is_online do %>
+                      <div class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
+                        ✕
+                      </div>
+                      <span class="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs py-1 text-center font-semibold">
+                        Offline
+                      </span>
+                    <% end %>
                   </div>
                 <% end %>
                 <%= for _user_id <- @pending_players do %>
