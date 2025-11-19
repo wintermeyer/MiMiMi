@@ -19,6 +19,7 @@ A mobile-first multiplayer word-guessing game built with Phoenix LiveView for Ge
 - Large, prominent display of invitation code in dashboard for easy reading
 - Share code via QR code, link, or direct code entry
 - 15-minute lobby timeout with countdown
+- **Cancel Game**: Host can cancel the game from the waiting room before it starts, automatically redirecting all players to the home page
 - Secure host authentication with cryptographic tokens
 - Modern glassmorphism design with smooth animations
 

@@ -137,6 +137,41 @@ defmodule MimimiWeb.DashboardLiveTest do
       assert html =~ "Runde 1 von"
       assert html =~ "Welches Wort ist richtig?"
     end
+
+    test "host can cancel game and players are redirected", %{conn: conn, game: game} do
+      # Set up host session
+      conn =
+        conn
+        |> init_test_session(%{"user_session_id" => "host_session"})
+        |> put_session("host_token_#{game.id}", game.host_token)
+
+      # Mount the dashboard as the host
+      {:ok, view, html} = live(conn, ~p"/dashboard/#{game.id}")
+
+      # Should show cancel button
+      assert html =~ "Spiel abbrechen"
+
+      # Add a player to the game
+      {:ok, player_user} = Accounts.get_or_create_user_by_session("player_session")
+
+      {:ok, _player} =
+        Games.create_player(player_user.id, game.id, %{avatar: "🐻", nickname: "🐻"})
+
+      Games.broadcast_to_game(game.id, :player_joined)
+      :timer.sleep(100)
+
+      # Click cancel button
+      view |> element("button", "Spiel abbrechen") |> render_click()
+
+      # Give time for the broadcast and redirect
+      :timer.sleep(100)
+
+      # Should redirect to home page
+      assert_redirect(view, ~p"/")
+
+      # Verify game is deleted
+      assert Games.get_game(game.id) == nil
+    end
   end
 
   # Note: Integration test for pick indicators was removed due to timing issues

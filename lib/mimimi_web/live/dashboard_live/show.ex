@@ -309,6 +309,13 @@ defmodule MimimiWeb.DashboardLive.Show do
      |> push_navigate(to: ~p"/")}
   end
 
+  def handle_info(:game_cancelled, socket) do
+    {:noreply,
+     socket
+     |> put_flash(:info, "Das Spiel wurde abgebrochen.")
+     |> push_navigate(to: ~p"/")}
+  end
+
   def handle_info(:round_generation_failed, socket) do
     {:noreply,
      socket
@@ -472,6 +479,19 @@ defmodule MimimiWeb.DashboardLive.Show do
     {:noreply, socket}
   end
 
+  def handle_event("cancel_game", _params, socket) do
+    game = socket.assigns.game
+
+    case Games.cancel_game(game.id) do
+      {:ok, :cancelled} ->
+        # The game_cancelled broadcast will be handled by handle_info
+        {:noreply, socket}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Fehler beim Abbrechen des Spiels")}
+    end
+  end
+
   def handle_event("stop_game", _params, socket) do
     game = socket.assigns.game
 
@@ -608,6 +628,7 @@ defmodule MimimiWeb.DashboardLive.Show do
         {render_invitation_card(assigns)}
         {render_start_game_button(assigns)}
         {render_players_card(assigns)}
+        {render_cancel_game_button(assigns)}
       </div>
     </.page_container>
     """
@@ -754,6 +775,22 @@ defmodule MimimiWeb.DashboardLive.Show do
         </div>
       <% end %>
     </.glass_card>
+    """
+  end
+
+  defp render_cancel_game_button(assigns) do
+    ~H"""
+    <div class="mt-6">
+      <button
+        type="button"
+        phx-click="cancel_game"
+        class="relative w-full text-lg font-semibold py-4 rounded-2xl shadow-xl transition-all duration-200 overflow-hidden group bg-gradient-to-r from-red-600 via-red-500 to-orange-500 hover:from-red-700 hover:via-red-600 hover:to-orange-600 text-white shadow-red-500/30 hover:shadow-2xl hover:shadow-red-500/40 hover:scale-[1.02] active:scale-[0.98]"
+      >
+        <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700">
+        </div>
+        <span class="relative">🚫 Spiel abbrechen</span>
+      </button>
+    </div>
     """
   end
 

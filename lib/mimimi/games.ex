@@ -1367,6 +1367,42 @@ defmodule Mimimi.Games do
   end
 
   @doc """
+  Cancels a game in the waiting_for_players state.
+  Removes all players and deletes the game and its invitation.
+  Used when the host wants to cancel the game before it starts.
+  """
+  def cancel_game(game_id) do
+    case Repo.get(Game, game_id) do
+      nil ->
+        {:error, :not_found}
+
+      game ->
+        if game.state != "waiting_for_players" do
+          {:error, :game_already_started}
+        else
+          Repo.transaction(fn ->
+            # Delete all players in this game
+            from(p in Player, where: p.game_id == ^game_id)
+            |> Repo.delete_all()
+
+            # Delete the game invitation
+            from(i in GameInvite, where: i.game_id == ^game_id)
+            |> Repo.delete_all()
+
+            # Delete the game itself
+            Repo.delete!(game)
+          end)
+
+          # Broadcast to all connected users that the game was cancelled
+          broadcast_to_game(game_id, :game_cancelled)
+          broadcast_game_count_changed()
+
+          {:ok, :cancelled}
+        end
+    end
+  end
+
+  @doc """
   Gets a game by ID.
   """
   def get_game(game_id) do
