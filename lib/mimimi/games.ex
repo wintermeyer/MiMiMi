@@ -370,12 +370,28 @@ defmodule Mimimi.Games do
 
   # Async round generation for production
   defp generate_rounds_async_task(game) do
+    require Logger
     caller_pid = self()
 
-    Task.Supervisor.start_child(Mimimi.TaskSupervisor, fn ->
-      setup_sandbox_access(caller_pid)
-      generate_rounds_async(game)
-    end)
+    result =
+      Task.Supervisor.start_child(Mimimi.TaskSupervisor, fn ->
+        setup_sandbox_access(caller_pid)
+        generate_rounds_async(game)
+      end)
+
+    case result do
+      {:ok, _pid} ->
+        Logger.info("Successfully started async round generation task for game #{game.id}")
+
+      {:error, reason} ->
+        Logger.error(
+          "Failed to start async round generation task for game #{game.id}: #{inspect(reason)}"
+        )
+
+        broadcast_to_game(game.id, :round_generation_failed)
+    end
+
+    result
   end
 
   # Setup database sandbox access for async task
@@ -435,7 +451,9 @@ defmodule Mimimi.Games do
         {:ok, round} ->
           Logger.info("Advanced to first round #{round.id} for game #{game.id}")
           # Broadcast that the first round is ready - game can start NOW
+          Logger.info("Broadcasting :round_started to game #{game.id}")
           broadcast_to_game(game.id, :round_started)
+          Logger.info("Broadcast :round_started completed for game #{game.id}")
 
           # Generate remaining rounds in the background while players are playing
           if game.rounds_count > 1 do

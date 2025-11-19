@@ -74,6 +74,11 @@ A mobile-first multiplayer word-guessing game built with Phoenix LiveView for Ge
   - Words with both keywords and images (usable in game)
   - Keywords, ActiveStorage attachments and blobs
 - Error handling with detailed error messages for troubleshooting
+- **Round Generation Debug Info**: If players see the "Runden werden vorbereitet..." (Preparing rounds) screen for more than a few seconds, debug information is displayed showing:
+  - Game ID, Game State, Player ID
+  - Timestamp when waiting started
+  - Automatic timeout check after 10 seconds to recover from missed broadcasts
+  - Fallback mechanism to load rounds directly from database if broadcast fails
 
 ## 🎨 Design System
 

@@ -54,6 +54,7 @@ defmodule MimimiWeb.GameLive.Play do
       |> assign(:online_players, online_players)
       |> assign(:page_title, "Spiel")
       |> assign(:rounds_loading, false)
+      |> assign(:debug_waiting_since, nil)
 
     if game.state == "game_running" do
       load_current_round(socket, game_id)
@@ -194,9 +195,19 @@ defmodule MimimiWeb.GameLive.Play do
   def handle_info(:game_started, socket) do
     # Game has started but rounds are being generated in background
     # Reload the game to get the updated state and show "preparing..." message
+    Logger.info(
+      "Player #{socket.assigns.player.id}: Received :game_started, setting rounds_loading=true"
+    )
+
     game = Games.get_game_with_players(socket.assigns.game.id)
+
+    # Set a timeout to check if rounds are ready after 10 seconds
+    # This is a fallback in case the :round_started broadcast is missed
+    Process.send_after(self(), :check_rounds_ready, 10_000)
+
     socket = assign(socket, :game, game)
     socket = assign(socket, :rounds_loading, true)
+    socket = assign(socket, :debug_waiting_since, DateTime.utc_now())
     {:noreply, socket}
   end
 
@@ -322,12 +333,58 @@ defmodule MimimiWeb.GameLive.Play do
 
   def handle_info(:round_started, socket) do
     # Rounds are ready, load the first/next round
+    Logger.info("Player #{socket.assigns.player.id}: Received :round_started, loading round")
+
     socket =
       socket
       |> assign(:rounds_loading, false)
+      |> assign(:debug_waiting_since, nil)
       |> load_current_round(socket.assigns.game.id)
 
     {:noreply, socket}
+  end
+
+  def handle_info(:check_rounds_ready, socket) do
+    # Fallback timeout check - in case :round_started broadcast was missed
+    # This checks if rounds are actually ready by querying the database
+    if socket.assigns.rounds_loading do
+      Logger.info(
+        "Player #{socket.assigns.player.id}: Timeout checking if rounds are ready for game #{socket.assigns.game.id}"
+      )
+
+      case Games.get_current_round(socket.assigns.game.id) do
+        nil ->
+          # Still no round available after 10 seconds - something went wrong
+          Logger.error(
+            "Player #{socket.assigns.player.id}: No rounds available after 10 second timeout for game #{socket.assigns.game.id}"
+          )
+
+          {:noreply,
+           socket
+           |> put_flash(
+             :error,
+             "Fehler beim Laden der Runden. Bitte lade die Seite neu oder kontaktiere den Support."
+           )
+           |> assign(:rounds_loading, false)}
+
+        _round ->
+          # Round is ready! The broadcast was probably missed
+          Logger.warning(
+            "Player #{socket.assigns.player.id}: Round was ready but :round_started broadcast was missed for game #{socket.assigns.game.id}"
+          )
+
+          socket =
+            socket
+            |> assign(:rounds_loading, false)
+            |> assign(:debug_waiting_since, nil)
+            |> load_current_round(socket.assigns.game.id)
+
+          {:noreply, socket}
+      end
+    else
+      # rounds_loading is false, so we already received :round_started - ignore this timeout
+      {:noreply, socket}
+    end
   end
 
   def handle_info(:host_disconnected, socket) do
@@ -508,8 +565,25 @@ defmodule MimimiWeb.GameLive.Play do
             </div>
 
             <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
-              <div class="flex justify-center">
+              <div class="flex flex-col items-center gap-6">
                 <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-purple-500"></div>
+
+                <%!-- Debug information --%>
+                <div class="text-left text-sm text-gray-600 dark:text-gray-400 font-mono bg-gray-100 dark:bg-gray-900 p-4 rounded-xl w-full max-w-md">
+                  <p class="mb-2"><strong>Debug Info:</strong></p>
+                  <p>Game ID: {@game.id}</p>
+                  <p>Game State: {@game.state}</p>
+                  <p>Player ID: {@player.id}</p>
+                  <%= if Map.has_key?(assigns, :debug_waiting_since) && @debug_waiting_since do %>
+                    <p>
+                      Waiting since: {Calendar.strftime(@debug_waiting_since, "%H:%M:%S")}
+                    </p>
+                  <% end %>
+                  <p class="mt-2 text-xs text-gray-500 dark:text-gray-500">
+                    Wenn dieser Bildschirm länger als 10 Sekunden angezeigt wird,
+                    bitte die Seite neu laden oder den Entwickler kontaktieren.
+                  </p>
+                </div>
               </div>
             </div>
           <% else %>
