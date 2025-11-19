@@ -151,9 +151,14 @@ ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 
 echo "==> Creating static files symlink"
 # Find the actual static files directory (handles version changes)
-STATIC_DIR=$(find "$RELEASE_DIR/lib" -type d -name "priv" | head -n1)
+# Look specifically for mimimi-*/priv to avoid matching dependency libraries
+STATIC_DIR=$(find "$RELEASE_DIR/lib" -type d -path "*/mimimi-*/priv" | head -n1)
 if [ -n "$STATIC_DIR" ]; then
     ln -sfn "$STATIC_DIR/static" "$SHARED_DIR/static"
+    echo "    Linked: $STATIC_DIR/static -> $SHARED_DIR/static"
+else
+    echo "    ERROR: Could not find mimimi priv directory!"
+    exit 1
 fi
 
 echo "==> Restarting application"

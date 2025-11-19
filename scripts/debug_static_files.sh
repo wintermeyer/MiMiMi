@@ -22,7 +22,8 @@ fi
 
 echo ""
 echo "2. Checking for priv/static in release..."
-STATIC_DIR=$(find "$CURRENT_RELEASE/lib" -type d -name "priv" 2>/dev/null | head -n1)
+# Look specifically for mimimi-*/priv to avoid matching dependency libraries
+STATIC_DIR=$(find "$CURRENT_RELEASE/lib" -type d -path "*/mimimi-*/priv" 2>/dev/null | head -n1)
 if [ -n "$STATIC_DIR" ]; then
     echo "   ✓ Found priv directory: $STATIC_DIR"
     ACTUAL_STATIC="$STATIC_DIR/static"
@@ -34,7 +35,9 @@ if [ -n "$STATIC_DIR" ]; then
         exit 1
     fi
 else
-    echo "   ✗ ERROR: Could not find priv directory in release!"
+    echo "   ✗ ERROR: Could not find mimimi priv directory in release!"
+    echo "   Available directories:"
+    find "$CURRENT_RELEASE/lib" -type d -name "priv" 2>/dev/null | sed 's/^/      /'
     exit 1
 fi
 

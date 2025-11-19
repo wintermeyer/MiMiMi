@@ -21,10 +21,13 @@ CURRENT_RELEASE=$(readlink -f "$CURRENT_DIR")
 echo "Current release: $CURRENT_RELEASE"
 
 # Find the static directory in the release
-STATIC_DIR=$(find "$CURRENT_RELEASE/lib" -type d -name "priv" 2>/dev/null | head -n1)
+# Look specifically for mimimi-*/priv to avoid matching dependency libraries
+STATIC_DIR=$(find "$CURRENT_RELEASE/lib" -type d -path "*/mimimi-*/priv" 2>/dev/null | head -n1)
 
 if [ -z "$STATIC_DIR" ]; then
-    echo "ERROR: Could not find priv directory in release!"
+    echo "ERROR: Could not find mimimi priv directory in release!"
+    echo "Available priv directories:"
+    find "$CURRENT_RELEASE/lib" -type d -name "priv" 2>/dev/null | sed 's/^/  /'
     exit 1
 fi
 
