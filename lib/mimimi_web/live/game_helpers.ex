@@ -47,21 +47,6 @@ defmodule MimimiWeb.GameHelpers do
   def determine_game_path(game_id, _state), do: "/dashboard/#{game_id}"
 
   @doc """
-  Validates game invitation and returns appropriate error messages.
-
-  ## Examples
-
-      case GameHelpers.validate_game_invitation(short_code) do
-        {:ok, game} -> # proceed with joining
-        {:error, :not_found} -> # show "code not found" message
-        {:error, :expired} -> # show "code expired" message
-      end
-  """
-  def validate_game_invitation(short_code) do
-    Games.validate_short_code(short_code)
-  end
-
-  @doc """
   Returns a human-readable error message for game invitation errors.
   """
   def invitation_error_message(:not_found), do: "Dieser Code existiert nicht."
@@ -74,18 +59,4 @@ defmodule MimimiWeb.GameHelpers do
 
   def invitation_error_message(:host_disconnected), do: "Der Host hat das Spiel verlassen."
   def invitation_error_message(_), do: "Ein Fehler ist aufgetreten."
-
-  @doc """
-  Subscribes to game-specific PubSub topics.
-  """
-  def subscribe_to_game(game_id) do
-    Phoenix.PubSub.subscribe(Mimimi.PubSub, "game:#{game_id}")
-  end
-
-  @doc """
-  Subscribes to global game count changes.
-  """
-  def subscribe_to_game_count do
-    Phoenix.PubSub.subscribe(Mimimi.PubSub, "game_count")
-  end
 end

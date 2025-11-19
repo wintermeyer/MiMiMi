@@ -646,12 +646,9 @@ defmodule MimimiWeb.HomeLive.Index do
     |> assign(:invite_form, to_form(%{"code" => code}, as: :invite))
   end
 
-  defp game_error_message(:not_found), do: "Ungültiger Code"
-  defp game_error_message(:expired), do: "Dieser Code ist abgelaufen"
-  defp game_error_message(:already_started), do: "Das Spiel hat bereits begonnen"
-  defp game_error_message(:game_over), do: "Das Spiel ist bereits vorbei"
-  defp game_error_message(:lobby_timeout), do: "Die Lobby-Zeit ist abgelaufen"
-  defp game_error_message(_), do: "Ein Fehler ist aufgetreten"
+  defp game_error_message(error_atom) do
+    MimimiWeb.GameHelpers.invitation_error_message(error_atom)
+  end
 
   defp has_waiting_games? do
     Games.count_waiting_games() > 0

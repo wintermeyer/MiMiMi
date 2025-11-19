@@ -121,7 +121,7 @@ defmodule MimimiWeb.HomeLiveTest do
       |> render_submit()
 
       # Check for error message
-      assert render(view) =~ "Ungültiger Code"
+      assert render(view) =~ "Dieser Code existiert nicht."
     end
 
     test "redirects to avatar selection with valid code", %{conn: conn, user: user} do
@@ -190,7 +190,7 @@ defmodule MimimiWeb.HomeLiveTest do
       |> render_submit()
 
       # Check for error message
-      assert render(view) =~ "Das Spiel hat bereits begonnen"
+      assert render(view) =~ "Dieses Spiel hat bereits begonnen."
     end
 
     test "can still create a new game", %{conn: conn} do

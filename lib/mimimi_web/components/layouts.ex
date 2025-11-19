@@ -133,7 +133,7 @@ defmodule MimimiWeb.Layouts do
             <div class="flex items-center gap-2">
               <span class="text-xs text-gray-500 dark:text-gray-500">Gefördert durch:</span>
               <img
-                src="/images/BMBFSFJ_de_v1__Web_farbig.webp"
+                src={~p"/images/BMBFSFJ_de_v1__Web_farbig.webp"}
                 alt="Bundesministerium für Familie, Senioren, Frauen und Jugend"
                 class="h-24 w-auto"
               />
