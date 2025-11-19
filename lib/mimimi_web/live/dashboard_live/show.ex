@@ -1357,7 +1357,7 @@ defmodule MimimiWeb.DashboardLive.Show do
     <%= if @correct_picks_by_player && map_size(@correct_picks_by_player) > 0 do %>
       <.glass_card class="p-8 mb-6 correct-picks">
         <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">
-          Richtig geraten! 🎉
+          Super! 🎉
         </h2>
 
         <div class="space-y-8">

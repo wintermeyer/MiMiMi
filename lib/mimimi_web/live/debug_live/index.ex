@@ -27,10 +27,33 @@ defmodule MimimiWeb.DebugLive.Index do
   defp get_system_info do
     %{
       elixir_version: System.version(),
+      erlang_version: get_erlang_version(),
       phoenix_version: Application.spec(:phoenix, :vsn) |> to_string(),
       app_version: Application.spec(:mimimi, :vsn) |> to_string(),
       deployment_timestamp: get_deployment_timestamp()
     }
+  end
+
+  defp get_erlang_version do
+    # Get the full Erlang version including minor/patch
+    # Parse from system_version which contains the full version string
+    system_version = :erlang.system_info(:system_version) |> to_string()
+
+    # Extract version from string like "Erlang/OTP 28 [erts-15.1] ..."
+    case Regex.run(~r/Erlang\/OTP \d+ \[erts-([\d.]+)\]/, system_version) do
+      [_, erts_version] ->
+        # Extract major.minor from erts version (e.g., "15.1" from erts-15.1)
+        case String.split(erts_version, ".") do
+          [major, minor | _] ->
+            # Map erts version to OTP release
+            otp_release = System.otp_release()
+            "#{otp_release}.#{minor}"
+          _ ->
+            System.otp_release()
+        end
+      _ ->
+        System.otp_release()
+    end
   end
 
   defp get_deployment_timestamp do
@@ -46,7 +69,7 @@ defmodule MimimiWeb.DebugLive.Index do
       mtime
       |> NaiveDateTime.from_erl!()
       |> DateTime.from_naive!("Etc/UTC")
-      |> Calendar.strftime("%Y-%m-%d %H:%M:%S UTC")
+      |> Calendar.strftime("%d.%m.%Y %H:%M:%S UTC")
     else
       _ -> "Unknown"
     end
@@ -201,6 +224,12 @@ defmodule MimimiWeb.DebugLive.Index do
           label="Elixir"
           value={@system_info.elixir_version}
           gradient="from-purple-500 to-pink-500"
+        />
+        <.info_stat
+          icon="📡"
+          label="Erlang/OTP"
+          value={@system_info.erlang_version}
+          gradient="from-red-500 to-pink-500"
         />
         <.info_stat
           icon="🔥"
