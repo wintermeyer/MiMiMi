@@ -148,6 +148,9 @@ defmodule Mimimi.HotDeploy do
       {:ok, :no_upgrade} ->
         Logger.debug("[HotDeploy] No new upgrades available")
 
+      {:error, :not_found} ->
+        Logger.debug("[HotDeploy] No upgrades available")
+
       {:error, reason} ->
         Logger.warning("[HotDeploy] Upgrade check failed: #{inspect(reason)}")
     end
