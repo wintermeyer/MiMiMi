@@ -770,7 +770,7 @@ defmodule MimimiWeb.CoreComponents do
 
   def checkbox_button(assigns) do
     ~H"""
-    <label class={["relative cursor-pointer", @class]}>
+    <label class={["relative cursor-pointer group", @class]}>
       <input
         type="checkbox"
         name={@name}
@@ -781,16 +781,20 @@ defmodule MimimiWeb.CoreComponents do
       />
       <div class={[
         "relative overflow-hidden rounded-2xl p-4 text-center border-2 transition-all duration-200",
-        "peer-checked:border-transparent peer-checked:text-white peer-checked:shadow-xl",
-        "border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300",
+        "peer-checked:border-transparent peer-checked:shadow-xl",
+        "border-gray-200 dark:border-gray-700",
         "hover:border-gray-300 dark:hover:border-gray-600"
       ]}>
         <div class={[
-          "absolute inset-0 bg-gradient-to-r opacity-0 peer-checked:opacity-100 transition-opacity duration-200",
+          "absolute inset-0 bg-gradient-to-r transition-opacity duration-200",
+          "opacity-0 peer-checked:opacity-100",
           @gradient
         ]}>
         </div>
-        <span class="relative font-semibold">{@label}</span>
+        <span class={[
+          "relative z-10 font-semibold transition-colors duration-200",
+          "text-gray-700 dark:text-gray-300 peer-checked:text-white"
+        ]}>{@label}</span>
       </div>
     </label>
     """
@@ -814,7 +818,7 @@ defmodule MimimiWeb.CoreComponents do
 
   def radio_button(assigns) do
     ~H"""
-    <label class={["relative cursor-pointer", @class]}>
+    <label class={["relative cursor-pointer group", @class]}>
       <input
         type="radio"
         name={@name}
@@ -825,16 +829,20 @@ defmodule MimimiWeb.CoreComponents do
       />
       <div class={[
         "relative overflow-hidden rounded-2xl p-4 text-center border-2 transition-all duration-200",
-        "peer-checked:border-transparent peer-checked:text-white peer-checked:shadow-xl",
-        "border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300",
+        "peer-checked:border-transparent peer-checked:shadow-xl",
+        "border-gray-200 dark:border-gray-700",
         "hover:border-gray-300 dark:hover:border-gray-600"
       ]}>
         <div class={[
-          "absolute inset-0 bg-gradient-to-r opacity-0 peer-checked:opacity-100 transition-opacity duration-200",
+          "absolute inset-0 bg-gradient-to-r transition-opacity duration-200",
+          "opacity-0 peer-checked:opacity-100",
           @gradient
         ]}>
         </div>
-        <span class="relative font-semibold">{@label}</span>
+        <span class={[
+          "relative z-10 font-semibold transition-colors duration-200",
+          "text-gray-700 dark:text-gray-300 peer-checked:text-white"
+        ]}>{@label}</span>
       </div>
     </label>
     """

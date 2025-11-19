@@ -316,7 +316,7 @@ defmodule MimimiWeb.HomeLive.Index do
 
   defp render_word_types_selector(assigns) do
     ~H"""
-    <details class="group/details" id="word-types-details">
+    <details class="group/details" id="word-types-details" open>
       <summary class="flex items-center justify-between cursor-pointer list-none px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 transition-all duration-200">
         <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">
           Wortarten (optional)
@@ -332,21 +332,12 @@ defmodule MimimiWeb.HomeLive.Index do
         </svg>
       </summary>
       <div class="mt-3 space-y-3">
-        <div class="grid grid-cols-2 gap-3" data-stop-propagation>
+        <div class="grid grid-cols-2 gap-3">
           <.checkbox_button
             name="game[word_types][]"
             value="Noun"
             checked={"Noun" in (@form[:word_types].value || [])}
             label="Nomen"
-            phx-click={JS.dispatch("click", to: "#word-type-noun")}
-          />
-          <input
-            type="checkbox"
-            id="word-type-noun"
-            name="game[word_types][]"
-            value="Noun"
-            checked={"Noun" in (@form[:word_types].value || [])}
-            class="hidden"
           />
 
           <.checkbox_button
@@ -355,15 +346,6 @@ defmodule MimimiWeb.HomeLive.Index do
             checked={"Verb" in (@form[:word_types].value || [])}
             label="Verb"
             gradient="from-blue-500 to-cyan-500"
-            phx-click={JS.dispatch("click", to: "#word-type-verb")}
-          />
-          <input
-            type="checkbox"
-            id="word-type-verb"
-            name="game[word_types][]"
-            value="Verb"
-            checked={"Verb" in (@form[:word_types].value || [])}
-            class="hidden"
           />
 
           <.checkbox_button
@@ -372,15 +354,6 @@ defmodule MimimiWeb.HomeLive.Index do
             checked={"Adjective" in (@form[:word_types].value || [])}
             label="Adjektiv"
             gradient="from-green-500 to-emerald-500"
-            phx-click={JS.dispatch("click", to: "#word-type-adjective")}
-          />
-          <input
-            type="checkbox"
-            id="word-type-adjective"
-            name="game[word_types][]"
-            value="Adjective"
-            checked={"Adjective" in (@form[:word_types].value || [])}
-            class="hidden"
           />
 
           <.checkbox_button
@@ -389,15 +362,6 @@ defmodule MimimiWeb.HomeLive.Index do
             checked={"Adverb" in (@form[:word_types].value || [])}
             label="Adverb"
             gradient="from-yellow-500 to-orange-500"
-            phx-click={JS.dispatch("click", to: "#word-type-adverb")}
-          />
-          <input
-            type="checkbox"
-            id="word-type-adverb"
-            name="game[word_types][]"
-            value="Adverb"
-            checked={"Adverb" in (@form[:word_types].value || [])}
-            class="hidden"
           />
 
           <.checkbox_button
@@ -406,15 +370,6 @@ defmodule MimimiWeb.HomeLive.Index do
             checked={"Other" in (@form[:word_types].value || [])}
             label="Andere"
             gradient="from-pink-500 to-rose-500"
-            phx-click={JS.dispatch("click", to: "#word-type-other")}
-          />
-          <input
-            type="checkbox"
-            id="word-type-other"
-            name="game[word_types][]"
-            value="Other"
-            checked={"Other" in (@form[:word_types].value || [])}
-            class="hidden"
           />
         </div>
       </div>
@@ -434,15 +389,6 @@ defmodule MimimiWeb.HomeLive.Index do
           value="2"
           checked={@form[:grid_size].value == "2"}
           label="2x1"
-          phx-click={JS.dispatch("click", to: "#grid-2")}
-        />
-        <input
-          type="radio"
-          id="grid-2"
-          name="game[grid_size]"
-          value="2"
-          checked={@form[:grid_size].value == "2"}
-          class="hidden"
         />
 
         <.radio_button
@@ -451,15 +397,6 @@ defmodule MimimiWeb.HomeLive.Index do
           checked={@form[:grid_size].value == "4"}
           label="2x2"
           gradient="from-blue-500 to-cyan-500"
-          phx-click={JS.dispatch("click", to: "#grid-4")}
-        />
-        <input
-          type="radio"
-          id="grid-4"
-          name="game[grid_size]"
-          value="4"
-          checked={@form[:grid_size].value == "4"}
-          class="hidden"
         />
 
         <.radio_button
@@ -468,15 +405,6 @@ defmodule MimimiWeb.HomeLive.Index do
           checked={@form[:grid_size].value == "9" || !@form[:grid_size].value}
           label="3x3"
           gradient="from-indigo-500 to-purple-500"
-          phx-click={JS.dispatch("click", to: "#grid-9")}
-        />
-        <input
-          type="radio"
-          id="grid-9"
-          name="game[grid_size]"
-          value="9"
-          checked={@form[:grid_size].value == "9" || !@form[:grid_size].value}
-          class="hidden"
         />
 
         <.radio_button
@@ -485,15 +413,6 @@ defmodule MimimiWeb.HomeLive.Index do
           checked={@form[:grid_size].value == "16"}
           label="4x4"
           gradient="from-orange-500 to-red-500"
-          phx-click={JS.dispatch("click", to: "#grid-16")}
-        />
-        <input
-          type="radio"
-          id="grid-16"
-          name="game[grid_size]"
-          value="16"
-          checked={@form[:grid_size].value == "16"}
-          class="hidden"
         />
       </div>
     </div>
