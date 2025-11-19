@@ -689,6 +689,19 @@ defmodule Mimimi.Games do
   end
 
   @doc """
+  Gets the online status for all players in a game using Phoenix Presence.
+  Returns a MapSet of user IDs that are currently online.
+  """
+  def get_players_online_status(game_id) do
+    presence = Mimimi.Presence.list("game:#{game_id}:players")
+
+    presence
+    |> Map.keys()
+    |> Enum.map(fn "player_" <> user_id -> user_id end)
+    |> MapSet.new()
+  end
+
+  @doc """
   Removes a player when they disconnect during the waiting phase.
   This frees up their avatar for other players to use.
   """

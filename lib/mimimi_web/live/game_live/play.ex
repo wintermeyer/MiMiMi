@@ -14,24 +14,12 @@ defmodule MimimiWeb.GameLive.Play do
   require Logger
 
   @impl true
-  def mount(%{"id" => game_id} = params, _session, socket) do
+  def mount(%{"id" => game_id}, _session, socket) do
     game = Games.get_game_with_players(game_id)
     user = socket.assigns.current_user
 
-    # Try to get player by user ID first (normal case)
-    # If not found, try to get player by session token (reconnection case)
-    player =
-      case Games.get_player_by_game_and_user(game_id, user.id) do
-        nil ->
-          # Player not found by user, try session token for reconnection
-          case Map.get(params, "session_token") do
-            nil -> nil
-            session_token -> Games.get_player_by_session(game_id, session_token)
-          end
-
-        p ->
-          p
-      end
+    # Get player by user ID
+    player = Games.get_player_by_game_and_user(game_id, user.id)
 
     socket =
       cond do
