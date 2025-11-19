@@ -144,6 +144,7 @@ defmodule MimimiWeb.GameLive.Play do
     |> assign(:players_picked, MapSet.new())
     |> assign(:correct_word_info, nil)
     |> assign(:leaderboard, leaderboard)
+    |> assign(:all_players_picked, false)
   end
 
   defp get_initial_round_state(game_id, round_state) when round_state == "playing" do
@@ -312,11 +313,15 @@ defmodule MimimiWeb.GameLive.Play do
   end
 
   def handle_info(:all_players_picked, socket) do
+    # Pause the GameServer timer to freeze progress bars
+    Mimimi.GameServer.pause_timer(socket.assigns.game.id)
+
     # Schedule the round advancement after showing feedback
     # Only one :all_players_picked message is sent per round, so this prevents
     # multiple advancement messages from being scheduled
     Process.send_after(self(), :show_feedback_and_advance, 3000)
-    {:noreply, socket}
+
+    {:noreply, assign(socket, :all_players_picked, true)}
   end
 
   def handle_info(:round_timeout, socket) do
@@ -509,6 +514,7 @@ defmodule MimimiWeb.GameLive.Play do
               correct_word_info={@correct_word_info}
               players_picked={@players_picked}
               points_earned={Map.get(assigns, :points_earned, 0)}
+              all_players_picked={Map.get(assigns, :all_players_picked, false)}
             />
           <% true -> %>
             <.render_no_round_available />
@@ -673,6 +679,7 @@ defmodule MimimiWeb.GameLive.Play do
       keywords_revealed={@keywords_revealed}
       time_elapsed={@time_elapsed}
       clues_interval={@game.clues_interval}
+      all_players_picked={@all_players_picked}
     />
 
     <.glass_card class="p-8">
@@ -708,6 +715,7 @@ defmodule MimimiWeb.GameLive.Play do
             keywords_revealed={@keywords_revealed}
             time_elapsed={@time_elapsed}
             clues_interval={@clues_interval}
+            all_picked?={@all_players_picked}
           />
         <% end %>
       </div>

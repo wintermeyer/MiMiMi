@@ -50,6 +50,14 @@ defmodule Mimimi.GameServer do
   end
 
   @doc """
+  Pauses the timer without resetting state.
+  Used when all players have picked to freeze the progress bars.
+  """
+  def pause_timer(game_id) do
+    GenServer.cast(game_server_ref(game_id), :pause_timer)
+  end
+
+  @doc """
   Gets the current state of the game server.
   """
   def get_state(game_id) do
@@ -71,7 +79,8 @@ defmodule Mimimi.GameServer do
        keywords_revealed: 0,
        keywords_total: 0,
        round_state: :idle,
-       timeout_scheduled: false
+       timeout_scheduled: false,
+       timer_paused: false
      }}
   end
 
@@ -105,7 +114,8 @@ defmodule Mimimi.GameServer do
          keywords_revealed: 1,
          keywords_total: keywords_total,
          round_state: :playing,
-         timeout_scheduled: false
+         timeout_scheduled: false,
+         timer_paused: false
      }}
   end
 
@@ -122,6 +132,21 @@ defmodule Mimimi.GameServer do
        | timer_ref: nil,
          round_state: :idle,
          elapsed_seconds: 0
+     }}
+  end
+
+  def handle_cast(:pause_timer, state) do
+    if state.timer_ref do
+      Process.cancel_timer(state.timer_ref)
+    end
+
+    Logger.info("GameServer: Paused timer for game #{state.game_id} (all players picked)")
+
+    {:noreply,
+     %{
+       state
+       | timer_ref: nil,
+         timer_paused: true
      }}
   end
 
@@ -148,57 +173,72 @@ defmodule Mimimi.GameServer do
   end
 
   def handle_info({:tick, round_id}, state) do
-    # Ignore ticks from previous rounds (prevents stale ticks from affecting new rounds)
-    if round_id != state.round_id do
-      Logger.debug(
-        "GameServer: Ignoring stale tick from round #{round_id}, current round is #{state.round_id}"
+    cond do
+      # Ignore ticks from previous rounds (prevents stale ticks from affecting new rounds)
+      round_id != state.round_id ->
+        Logger.debug(
+          "GameServer: Ignoring stale tick from round #{round_id}, current round is #{state.round_id}"
+        )
+
+        {:noreply, state}
+
+      # Also ignore ticks if the timer is paused (all players have picked)
+      state.timer_paused ->
+        Logger.debug("GameServer: Ignoring tick, timer is paused for game #{state.game_id}")
+        {:noreply, state}
+
+      # Normal tick processing
+      true ->
+        process_tick(state, round_id)
+    end
+  end
+
+  defp process_tick(state, round_id) do
+    # Increment elapsed time
+    new_elapsed = state.elapsed_seconds + 1
+
+    # Check if it's time to reveal the next keyword
+    should_reveal =
+      rem(new_elapsed, state.clues_interval) == 0 and
+        new_elapsed > 0
+
+    # Always broadcast the current time and keyword count (for progress bar)
+    new_revealed =
+      if should_reveal, do: state.keywords_revealed + 1, else: state.keywords_revealed
+
+    Games.broadcast_to_game(state.game_id, {:keyword_revealed, new_revealed, new_elapsed})
+
+    if should_reveal do
+      Logger.debug("GameServer: Revealed keyword #{new_revealed} for game #{state.game_id}")
+    end
+
+    # Check if all keywords have finished their countdown and schedule timeout if needed
+    new_state = maybe_schedule_timeout(state, round_id, new_revealed, new_elapsed)
+
+    {:noreply,
+     %{
+       new_state
+       | elapsed_seconds: new_elapsed,
+         keywords_revealed: new_revealed,
+         timer_ref: Process.send_after(self(), {:tick, round_id}, 1000)
+     }}
+  end
+
+  defp maybe_schedule_timeout(state, round_id, new_revealed, new_elapsed) do
+    # The last keyword finishes at time: keywords_total * clues_interval
+    # We only schedule timeout once all keywords are done
+    if new_revealed >= state.keywords_total and
+         new_elapsed >= state.keywords_total * state.clues_interval and
+         not state.timeout_scheduled do
+      Logger.info(
+        "GameServer: All keywords countdown complete for game #{state.game_id}, scheduling round timeout"
       )
 
-      {:noreply, state}
+      # Schedule the timeout immediately - all keywords are done
+      Process.send_after(self(), {:round_timeout, round_id}, 0)
+      %{state | timeout_scheduled: true}
     else
-      # Increment elapsed time
-      new_elapsed = state.elapsed_seconds + 1
-
-      # Check if it's time to reveal the next keyword
-      should_reveal =
-        rem(new_elapsed, state.clues_interval) == 0 and
-          new_elapsed > 0
-
-      # Always broadcast the current time and keyword count (for progress bar)
-      new_revealed =
-        if should_reveal, do: state.keywords_revealed + 1, else: state.keywords_revealed
-
-      Games.broadcast_to_game(state.game_id, {:keyword_revealed, new_revealed, new_elapsed})
-
-      if should_reveal do
-        Logger.debug("GameServer: Revealed keyword #{new_revealed} for game #{state.game_id}")
-      end
-
-      # Check if all keywords have finished their countdown and schedule timeout if needed
-      # The last keyword finishes at time: keywords_total * clues_interval
-      # We only schedule timeout once all keywords are done
-      new_state =
-        if new_revealed >= state.keywords_total and
-             new_elapsed >= state.keywords_total * state.clues_interval and
-             not state.timeout_scheduled do
-          Logger.info(
-            "GameServer: All keywords countdown complete for game #{state.game_id}, scheduling round timeout"
-          )
-
-          # Schedule the timeout immediately - all keywords are done
-          Process.send_after(self(), {:round_timeout, round_id}, 0)
-          %{state | timeout_scheduled: true}
-        else
-          state
-        end
-
-      {:noreply,
-       %{
-         new_state
-         | elapsed_seconds: new_elapsed,
-           keywords_revealed: new_revealed,
-           timer_ref: Process.send_after(self(), {:tick, round_id}, 1000)
-       }}
+      state
     end
   end
 

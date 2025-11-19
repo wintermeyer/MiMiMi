@@ -225,8 +225,9 @@ defmodule MimimiWeb.GameComponents do
   @doc """
   Renders a single keyword badge with reveal state and progress indicator.
 
-  This component shows a keyword in one of three states:
-  - Revealed: Shows the keyword text with gradient background
+  This component shows a keyword in one of four states:
+  - Completed (all_picked?=true): Shows checkmark with green gradient background
+  - Revealed: Shows the keyword text with purple gradient background
   - Current: Shows the keyword text with progress bar animation
   - Upcoming: Shows "???" as placeholder
 
@@ -238,6 +239,7 @@ defmodule MimimiWeb.GameComponents do
         keywords_revealed={@keywords_revealed}
         time_elapsed={@time_elapsed}
         clues_interval={@game.clues_interval}
+        all_picked?={@all_players_picked}
       />
   """
   attr :keyword, :map, required: true
@@ -245,6 +247,7 @@ defmodule MimimiWeb.GameComponents do
   attr :keywords_revealed, :integer, required: true
   attr :time_elapsed, :integer, required: true
   attr :clues_interval, :integer, required: true
+  attr :all_picked?, :boolean, default: false
   attr :class, :string, default: nil
 
   def keyword_badge(assigns) do
@@ -274,6 +277,10 @@ defmodule MimimiWeb.GameComponents do
       [
         "relative overflow-hidden px-4 py-2 rounded-2xl font-semibold transition-all duration-300 transform",
         cond do
+          @all_picked? && (is_revealed || is_current) ->
+            # When all players picked, show checkmark state with green gradient
+            "bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg scale-100"
+
           is_revealed ->
             # Fully revealed keywords show with purple gradient
             "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg scale-100"
@@ -289,15 +296,18 @@ defmodule MimimiWeb.GameComponents do
         @class
       ]
     }>
-      <%= if is_current && progress_percent > 0 do %>
-        <%!-- Progress bar for current keyword --%>
+      <%= if is_current && progress_percent > 0 && !@all_picked? do %>
+        <%!-- Progress bar for current keyword (hidden when all picked) --%>
         <div
           class="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 opacity-30"
           style={"width: #{progress_percent}%; transition: width 0.5s linear;"}
         >
         </div>
       <% end %>
-      <span class="relative z-10">
+      <span class="relative z-10 flex items-center gap-2">
+        <%= if @all_picked? && (is_revealed || is_current) do %>
+          <span class="text-lg">✓</span>
+        <% end %>
         {if is_revealed || is_current, do: @keyword.name, else: "???"}
       </span>
     </div>

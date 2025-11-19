@@ -57,7 +57,7 @@ defmodule MimimiWeb.HomeLive.Index do
 
     {:ok,
      socket
-     |> assign(:form, to_form(initial_params))
+     |> assign(:form, to_form(initial_params, as: :game))
      |> assign(:invite_form, to_form(%{"code" => ""}, as: :invite))
      |> assign(:invite_error, nil)
      |> assign(:has_waiting_games, has_waiting_games)

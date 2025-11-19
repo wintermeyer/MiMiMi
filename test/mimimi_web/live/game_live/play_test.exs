@@ -502,6 +502,124 @@ defmodule MimimiWeb.GameLive.PlayTest do
     end
   end
 
+  describe "Progress bar checkmark transformation" do
+    @tag :external_db
+    test "progress bars transform to checkmarks when all players pick", %{host: host} do
+      # Create a game with 1 round
+      {:ok, game} =
+        Games.create_game(host.id, %{
+          rounds_count: 1,
+          clues_interval: 9,
+          grid_size: 9,
+          word_types: ["Noun"]
+        })
+
+      # Create two players
+      {:ok, player1_user} = Accounts.get_or_create_user_by_session("player1_checkmark_test")
+      {:ok, player2_user} = Accounts.get_or_create_user_by_session("player2_checkmark_test")
+
+      {:ok, _player1} = Games.create_player(player1_user.id, game.id, %{avatar: "🐻"})
+      {:ok, _player2} = Games.create_player(player2_user.id, game.id, %{avatar: "🐘"})
+
+      # Start the game
+      {:ok, game} = Games.start_game(game)
+
+      # Get round 1
+      round = Games.get_current_round(game.id)
+
+      # Mount play views for both players
+      player1_conn =
+        build_conn()
+        |> Plug.Test.init_test_session(%{"session_id" => "player1_checkmark_test"})
+
+      player2_conn =
+        build_conn()
+        |> Plug.Test.init_test_session(%{"session_id" => "player2_checkmark_test"})
+
+      {:ok, view1, _html} = live(player1_conn, "/games/#{game.id}/current")
+      {:ok, view2, _html} = live(player2_conn, "/games/#{game.id}/current")
+
+      # Simulate keyword being revealed
+      send(view1.pid, {:keyword_revealed, 1, 5})
+      send(view2.pid, {:keyword_revealed, 1, 5})
+
+      # Verify progress bar is showing before picks (gray background with purple progress)
+      html_before = render(view1)
+      assert html_before =~ "bg-gray-300 dark:bg-gray-700"
+      refute html_before =~ "from-green-500 to-emerald-500"
+
+      # Both players pick a word
+      possible_word_id = hd(round.possible_words_ids)
+
+      view1
+      |> element("button[phx-click='guess_word'][phx-value-word_id='#{possible_word_id}']")
+      |> render_click()
+
+      view2
+      |> element("button[phx-click='guess_word'][phx-value-word_id='#{possible_word_id}']")
+      |> render_click()
+
+      # Wait a moment for the all_players_picked message to be processed
+      :timer.sleep(200)
+
+      # Render the view after all players picked
+      html_after = render(view1)
+
+      # Verify checkmark state:
+      # 1. Should have green gradient (from-green-500 to-emerald-500)
+      assert html_after =~ "from-green-500 to-emerald-500"
+
+      # 2. Should show checkmark icon (✓)
+      assert html_after =~ "✓"
+
+      # 3. Should not show the progress bar gradient anymore
+      refute html_after =~ "bg-gradient-to-r from-purple-500 to-pink-500 opacity-30"
+    end
+
+    @tag :external_db
+    test "GameServer timer pauses when all players pick", %{host: host} do
+      # Create a game with 1 round
+      {:ok, game} =
+        Games.create_game(host.id, %{
+          rounds_count: 1,
+          clues_interval: 9,
+          grid_size: 9,
+          word_types: ["Noun"]
+        })
+
+      # Create one player
+      {:ok, player_user} = Accounts.get_or_create_user_by_session("player_pause_test")
+      {:ok, _player} = Games.create_player(player_user.id, game.id, %{avatar: "🐻"})
+
+      # Start the game
+      {:ok, game} = Games.start_game(game)
+      round = Games.get_current_round(game.id)
+
+      # Mount play view
+      player_conn =
+        build_conn()
+        |> Plug.Test.init_test_session(%{"session_id" => "player_pause_test"})
+
+      {:ok, view, _html} = live(player_conn, "/games/#{game.id}/current")
+
+      # Simulate keyword being revealed
+      send(view.pid, {:keyword_revealed, 1, 5})
+
+      # Player picks a word (all players picked since there's only one)
+      view
+      |> element("button[phx-click='guess_word'][phx-value-word_id='#{round.word_id}']")
+      |> render_click()
+
+      # Wait for the pause to be processed
+      :timer.sleep(200)
+
+      # Verify the GameServer is paused
+      server_state = Games.get_game_server_state(game.id)
+      assert server_state.timer_paused == true
+      assert server_state.timer_ref == nil
+    end
+  end
+
   describe "Manual game stopping" do
     @tag :external_db
     test "player receives flash message when host stops game", %{
