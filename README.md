@@ -211,3 +211,28 @@ See `WortSchuleIntegration.md` for complete integration documentation.
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for production deployment with hot code upgrades.
 
+### Troubleshooting Static Files
+
+If static files (like the BMBFSFJ logo in the footer) aren't displaying on production:
+
+1. **Run the diagnostic script on the server:**
+   ```bash
+   ./scripts/debug_static_files.sh
+   ```
+
+2. **Common issues and fixes:**
+   - **Broken symlink**: The script will automatically fix the `/var/www/mimimi/shared/static` symlink
+   - **Missing files**: Redeploy with `git push` to trigger GitHub Actions
+   - **Permission issues**: Check nginx user and file permissions
+   - **Nginx config**: Verify static file location matches `/var/www/mimimi/shared/static`
+
+3. **Check nginx error logs:**
+   ```bash
+   sudo tail -100 /var/log/nginx/error.log
+   ```
+
+4. **Restart nginx after fixes:**
+   ```bash
+   sudo systemctl restart nginx
+   ```
+
