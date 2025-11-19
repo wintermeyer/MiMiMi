@@ -139,9 +139,8 @@ defmodule MimimiWeb.HomeLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900">
+    <.page_container>
       <div class="w-full max-w-md space-y-6">
-        <%!-- Main Header --%>
         <div class="text-center">
           <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
             MiMiMi
@@ -150,475 +149,352 @@ defmodule MimimiWeb.HomeLive.Index do
             Wörter-Ratespiel
           </p>
         </div>
-        <%!-- JOIN GAME SECTION - Only show when there are games waiting for players --%>
+
         <%= if @has_waiting_games do %>
-          <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
-            <div class="text-center mb-6">
-              <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 mb-3 shadow-lg">
-                <span class="text-3xl">🎯</span>
-              </div>
-              <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-                Spiel beitreten
-              </h2>
-              <p class="text-gray-600 dark:text-gray-400 text-sm">
-                Gib deinen Einladungscode ein
-              </p>
-            </div>
-
-            <.form
-              for={@invite_form}
-              id="join-game-form"
-              phx-change="validate_invite"
-              phx-submit="join_game"
-              class="space-y-4"
-            >
-              <div class="space-y-2">
-                <div class="relative group">
-                  <div class="absolute inset-0 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl opacity-0 group-hover:opacity-10 transition-opacity duration-300">
-                  </div>
-                  <input
-                    type="text"
-                    name="invite[code]"
-                    value={@invite_form[:code].value || ""}
-                    placeholder="123456"
-                    maxlength="6"
-                    inputmode="numeric"
-                    pattern="[0-9]*"
-                    autocomplete="off"
-                    class="relative w-full text-center text-2xl font-bold tracking-widest px-4 py-4 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-xl focus:border-green-500 dark:focus:border-green-400 focus:ring-4 focus:ring-green-100 dark:focus:ring-green-900/30 transition-all duration-200 dark:text-white outline-none"
-                  />
-                </div>
-
-                <%= if @invite_error do %>
-                  <div class="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
-                    <span class="text-lg">⚠️</span>
-                    <p class="text-sm text-red-600 dark:text-red-400 font-medium">
-                      {@invite_error}
-                    </p>
-                  </div>
-                <% end %>
-              </div>
-
-              <button
-                type="submit"
-                class="relative w-full text-lg font-semibold py-4 bg-gradient-to-r from-green-600 via-green-500 to-emerald-500 hover:from-green-700 hover:via-green-600 hover:to-emerald-600 text-white rounded-2xl shadow-xl shadow-green-500/30 hover:shadow-2xl hover:shadow-green-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 overflow-hidden group"
-              >
-                <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700">
-                </div>
-                <span class="relative">Spiel beitreten</span>
-              </button>
-            </.form>
-          </div>
-          <%!-- DIVIDER --%>
-          <div class="relative">
-            <div class="absolute inset-0 flex items-center">
-              <div class="w-full border-t-2 border-gray-200 dark:border-gray-700"></div>
-            </div>
-            <div class="relative flex justify-center">
-              <span class="px-4 text-sm font-semibold text-gray-500 dark:text-gray-400 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900">
-                oder
-              </span>
-            </div>
-          </div>
+          <.render_join_game_section form={@invite_form} error={@invite_error} />
+          <.divider_with_text text="oder" />
         <% end %>
-        <%!-- CREATE GAME SECTION --%>
-        <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
-          <div class="text-center mb-6">
-            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 mb-3 shadow-lg">
-              <span class="text-3xl">✨</span>
-            </div>
-            <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-              Neues Spiel
-            </h2>
-            <p class="text-gray-600 dark:text-gray-400 text-sm">
-              Erstelle ein neues Spiel
-            </p>
-          </div>
-          <.form
-            for={@form}
-            id="game-setup-form"
-            phx-change="validate"
-            phx-submit="save"
-            class="space-y-7"
-          >
-            <%!-- Rounds and Time Inputs - 2 Column Layout --%>
-            <div class="grid grid-cols-2 gap-3">
-              <%!-- Rounds Input --%>
-              <div class="space-y-2">
-                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  Wie viele Runden?
-                </label>
-                <div class="relative group">
-                  <div class="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl opacity-0 group-hover:opacity-10 transition-opacity duration-300">
-                  </div>
-                  <input
-                    type="number"
-                    name="game[rounds_count]"
-                    value={@form[:rounds_count].value || 3}
-                    min="1"
-                    max="20"
-                    class="relative w-full text-lg px-4 py-3.5 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-xl focus:border-purple-500 dark:focus:border-purple-400 focus:ring-4 focus:ring-purple-100 dark:focus:ring-purple-900/30 transition-all duration-200 dark:text-white outline-none"
-                  />
-                </div>
-              </div>
-              <%!-- Time Select --%>
-              <div class="space-y-2">
-                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  Zeit für Hinweise
-                </label>
-                <div class="relative group">
-                  <div class="absolute inset-0 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl opacity-0 group-hover:opacity-10 transition-opacity duration-300">
-                  </div>
-                  <select
-                    name="game[clues_interval]"
-                    class="relative w-full text-lg px-4 py-3.5 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-xl focus:border-purple-500 dark:focus:border-purple-400 focus:ring-4 focus:ring-purple-100 dark:focus:ring-purple-900/30 transition-all duration-200 dark:text-white outline-none cursor-pointer appearance-none"
-                  >
-                    <option value="3" selected={@form[:clues_interval].value == "3"}>3 Sek.</option>
-                    <option value="6" selected={@form[:clues_interval].value == "6"}>6 Sek.</option>
-                    <option
-                      value="9"
-                      selected={@form[:clues_interval].value == "9" || !@form[:clues_interval].value}
-                    >
-                      9 Sek.
-                    </option>
-                    <option value="10" selected={@form[:clues_interval].value == "10"}>
-                      10 Sek.
-                    </option>
-                    <option value="12" selected={@form[:clues_interval].value == "12"}>
-                      12 Sek.
-                    </option>
-                    <option value="15" selected={@form[:clues_interval].value == "15"}>
-                      15 Sek.
-                    </option>
-                    <option value="20" selected={@form[:clues_interval].value == "20"}>
-                      20 Sek.
-                    </option>
-                    <option value="30" selected={@form[:clues_interval].value == "30"}>
-                      30 Sek.
-                    </option>
-                    <option value="45" selected={@form[:clues_interval].value == "45"}>
-                      45 Sek.
-                    </option>
-                    <option value="60" selected={@form[:clues_interval].value == "60"}>
-                      60 Sek.
-                    </option>
-                  </select>
-                  <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M19 9l-7 7-7-7"
-                      >
-                      </path>
-                    </svg>
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            <%!-- Word Types Selection (Collapsible) --%>
-            <details class="group/details" id="word-types-details">
-              <summary class="flex items-center justify-between cursor-pointer list-none px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 transition-all duration-200">
-                <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  Wortarten (optional)
-                </span>
-                <svg
-                  class="w-5 h-5 text-gray-500 transition-transform duration-200 group-open/details:rotate-180"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 9l-7 7-7-7"
-                  >
-                  </path>
-                </svg>
-              </summary>
-              <div class="mt-3 space-y-3">
-                <div class="grid grid-cols-2 gap-3" data-stop-propagation>
-                  <button
-                    type="button"
-                    phx-click={JS.dispatch("click", to: "#word-type-noun")}
-                    class={[
-                      "relative py-3 px-4 rounded-xl font-medium text-sm transition-all duration-300 overflow-hidden group",
-                      if("Noun" in (@form[:word_types].value || []),
-                        do:
-                          "bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30",
-                        else:
-                          "bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-purple-300 dark:hover:border-purple-600 hover:shadow-md"
-                      )
-                    ]}
-                  >
-                    <div class="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
-                    </div>
-                    <span class="relative">Nomen</span>
-                  </button>
-                  <input
-                    type="checkbox"
-                    id="word-type-noun"
-                    name="game[word_types][]"
-                    value="Noun"
-                    checked={"Noun" in (@form[:word_types].value || [])}
-                    class="hidden"
-                  />
+        <.render_create_game_section
+          form={@form}
+          words_error={@words_error}
+          can_create_game={@can_create_game}
+        />
+      </div>
+    </.page_container>
+    """
+  end
 
-                  <button
-                    type="button"
-                    phx-click={JS.dispatch("click", to: "#word-type-verb")}
-                    class={[
-                      "relative py-3 px-4 rounded-xl font-medium text-sm transition-all duration-300 overflow-hidden group",
-                      if("Verb" in (@form[:word_types].value || []),
-                        do:
-                          "bg-gradient-to-br from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/30",
-                        else:
-                          "bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md"
-                      )
-                    ]}
-                  >
-                    <div class="absolute inset-0 bg-gradient-to-br from-blue-500 to-cyan-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
-                    </div>
-                    <span class="relative">Verb</span>
-                  </button>
-                  <input
-                    type="checkbox"
-                    id="word-type-verb"
-                    name="game[word_types][]"
-                    value="Verb"
-                    checked={"Verb" in (@form[:word_types].value || [])}
-                    class="hidden"
-                  />
+  defp render_join_game_section(assigns) do
+    ~H"""
+    <.glass_card class="p-8">
+      <div class="text-center mb-6">
+        <.gradient_icon_badge icon="🎯" gradient="from-green-500 to-emerald-500" />
+        <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+          Spiel beitreten
+        </h2>
+        <p class="text-gray-600 dark:text-gray-400 text-sm">
+          Gib deinen Einladungscode ein
+        </p>
+      </div>
 
-                  <button
-                    type="button"
-                    phx-click={JS.dispatch("click", to: "#word-type-adjective")}
-                    class={[
-                      "relative py-3 px-4 rounded-xl font-medium text-sm transition-all duration-300 overflow-hidden group",
-                      if("Adjective" in (@form[:word_types].value || []),
-                        do:
-                          "bg-gradient-to-br from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/30",
-                        else:
-                          "bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-green-300 dark:hover:border-green-600 hover:shadow-md"
-                      )
-                    ]}
-                  >
-                    <div class="absolute inset-0 bg-gradient-to-br from-green-500 to-emerald-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
-                    </div>
-                    <span class="relative">Adjektiv</span>
-                  </button>
-                  <input
-                    type="checkbox"
-                    id="word-type-adjective"
-                    name="game[word_types][]"
-                    value="Adjective"
-                    checked={"Adjective" in (@form[:word_types].value || [])}
-                    class="hidden"
-                  />
+      <.form
+        for={@form}
+        id="join-game-form"
+        phx-change="validate_invite"
+        phx-submit="join_game"
+        class="space-y-4"
+      >
+        <div class="space-y-2">
+          <.glass_input
+            name="invite[code]"
+            value={@form[:code].value || ""}
+            placeholder="123456"
+            gradient="from-green-500 to-emerald-500"
+            maxlength="6"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            autocomplete="off"
+            class="text-center text-2xl font-bold tracking-widest py-4 focus:border-green-500 dark:focus:border-green-400 focus:ring-green-100 dark:focus:ring-green-900/30"
+          />
 
-                  <button
-                    type="button"
-                    phx-click={JS.dispatch("click", to: "#word-type-adverb")}
-                    class={[
-                      "relative py-3 px-4 rounded-xl font-medium text-sm transition-all duration-300 overflow-hidden group",
-                      if("Adverb" in (@form[:word_types].value || []),
-                        do:
-                          "bg-gradient-to-br from-yellow-500 to-orange-500 text-white shadow-lg shadow-yellow-500/30",
-                        else:
-                          "bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-yellow-300 dark:hover:border-yellow-600 hover:shadow-md"
-                      )
-                    ]}
-                  >
-                    <div class="absolute inset-0 bg-gradient-to-br from-yellow-500 to-orange-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
-                    </div>
-                    <span class="relative">Adverb</span>
-                  </button>
-                  <input
-                    type="checkbox"
-                    id="word-type-adverb"
-                    name="game[word_types][]"
-                    value="Adverb"
-                    checked={"Adverb" in (@form[:word_types].value || [])}
-                    class="hidden"
-                  />
-
-                  <button
-                    type="button"
-                    phx-click={JS.dispatch("click", to: "#word-type-other")}
-                    class={[
-                      "relative py-3 px-4 rounded-xl font-medium text-sm transition-all duration-300 overflow-hidden group",
-                      if("Other" in (@form[:word_types].value || []),
-                        do:
-                          "bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg shadow-pink-500/30",
-                        else:
-                          "bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-pink-300 dark:hover:border-pink-600 hover:shadow-md"
-                      )
-                    ]}
-                  >
-                    <div class="absolute inset-0 bg-gradient-to-br from-pink-500 to-rose-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
-                    </div>
-                    <span class="relative">Andere</span>
-                  </button>
-                  <input
-                    type="checkbox"
-                    id="word-type-other"
-                    name="game[word_types][]"
-                    value="Other"
-                    checked={"Other" in (@form[:word_types].value || [])}
-                    class="hidden"
-                  />
-                </div>
-              </div>
-            </details>
-
-            <%!-- Grid Size Buttons --%>
-            <div class="space-y-3">
-              <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                Spielfeld Größe
-              </label>
-              <div class="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  phx-click={JS.dispatch("click", to: "#grid-2")}
-                  class={[
-                    "relative py-5 rounded-2xl font-semibold text-base transition-all duration-300 overflow-hidden group",
-                    if(@form[:grid_size].value == "2",
-                      do:
-                        "bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/50 scale-[1.02]",
-                      else:
-                        "bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-purple-300 dark:hover:border-purple-600 hover:shadow-md"
-                    )
-                  ]}
-                >
-                  <div class="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
-                  </div>
-                  <span class="relative">2x1</span>
-                </button>
-                <input
-                  type="radio"
-                  id="grid-2"
-                  name="game[grid_size]"
-                  value="2"
-                  checked={@form[:grid_size].value == "2"}
-                  class="hidden"
-                />
-
-                <button
-                  type="button"
-                  phx-click={JS.dispatch("click", to: "#grid-4")}
-                  class={[
-                    "relative py-5 rounded-2xl font-semibold text-base transition-all duration-300 overflow-hidden group",
-                    if(@form[:grid_size].value == "4",
-                      do:
-                        "bg-gradient-to-br from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/50 scale-[1.02]",
-                      else:
-                        "bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md"
-                    )
-                  ]}
-                >
-                  <div class="absolute inset-0 bg-gradient-to-br from-blue-500 to-cyan-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
-                  </div>
-                  <span class="relative">2x2</span>
-                </button>
-                <input
-                  type="radio"
-                  id="grid-4"
-                  name="game[grid_size]"
-                  value="4"
-                  checked={@form[:grid_size].value == "4"}
-                  class="hidden"
-                />
-
-                <button
-                  type="button"
-                  phx-click={JS.dispatch("click", to: "#grid-9")}
-                  class={[
-                    "relative py-5 rounded-2xl font-semibold text-base transition-all duration-300 overflow-hidden group",
-                    if(@form[:grid_size].value == "9" || !@form[:grid_size].value,
-                      do:
-                        "bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/50 scale-[1.02]",
-                      else:
-                        "bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-indigo-300 dark:hover:border-indigo-600 hover:shadow-md"
-                    )
-                  ]}
-                >
-                  <div class="absolute inset-0 bg-gradient-to-br from-indigo-500 to-purple-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
-                  </div>
-                  <span class="relative">3x3</span>
-                </button>
-                <input
-                  type="radio"
-                  id="grid-9"
-                  name="game[grid_size]"
-                  value="9"
-                  checked={@form[:grid_size].value == "9" || !@form[:grid_size].value}
-                  class="hidden"
-                />
-
-                <button
-                  type="button"
-                  phx-click={JS.dispatch("click", to: "#grid-16")}
-                  class={[
-                    "relative py-5 rounded-2xl font-semibold text-base transition-all duration-300 overflow-hidden group",
-                    if(@form[:grid_size].value == "16",
-                      do:
-                        "bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/50 scale-[1.02]",
-                      else:
-                        "bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-orange-300 dark:hover:border-orange-600 hover:shadow-md"
-                    )
-                  ]}
-                >
-                  <div class="absolute inset-0 bg-gradient-to-br from-orange-500 to-red-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
-                  </div>
-                  <span class="relative">4x4</span>
-                </button>
-                <input
-                  type="radio"
-                  id="grid-16"
-                  name="game[grid_size]"
-                  value="16"
-                  checked={@form[:grid_size].value == "16"}
-                  class="hidden"
-                />
-              </div>
-            </div>
-
-            <%!-- Error Message --%>
-            <%= if @words_error do %>
-              <div class="flex items-start gap-3 px-4 py-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl">
-                <span class="text-2xl flex-shrink-0">⚠️</span>
-                <p class="text-sm text-red-700 dark:text-red-300 font-medium leading-relaxed">
-                  {@words_error}
-                </p>
-              </div>
-            <% end %>
-
-            <%!-- Submit Button --%>
-            <button
-              type="submit"
-              disabled={!@can_create_game}
-              class={[
-                "relative w-full text-lg font-semibold py-4 rounded-2xl shadow-xl transition-all duration-200 overflow-hidden group",
-                if(@can_create_game,
-                  do:
-                    "bg-gradient-to-r from-purple-600 via-purple-500 to-pink-500 hover:from-purple-700 hover:via-purple-600 hover:to-pink-600 text-white shadow-purple-500/30 hover:shadow-2xl hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98] cursor-pointer",
-                  else:
-                    "bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed opacity-60"
-                )
-              ]}
-            >
-              <div
-                :if={@can_create_game}
-                class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
-              >
-              </div>
-              <span class="relative">Einladungslink generieren</span>
-            </button>
-          </.form>
+          <.error_banner :if={@error} message={@error} />
         </div>
+
+        <.gradient_button
+          type="submit"
+          gradient="from-green-600 via-green-500 to-emerald-500"
+          hover_gradient="from-green-700 via-green-600 to-emerald-600"
+          shadow_color="shadow-green-500/30"
+          hover_shadow_color="shadow-green-500/40"
+          class="text-lg"
+        >
+          Spiel beitreten
+        </.gradient_button>
+      </.form>
+    </.glass_card>
+    """
+  end
+
+  defp render_create_game_section(assigns) do
+    ~H"""
+    <.glass_card class="p-8">
+      <div class="text-center mb-6">
+        <.gradient_icon_badge icon="✨" />
+        <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+          Neues Spiel
+        </h2>
+        <p class="text-gray-600 dark:text-gray-400 text-sm">
+          Erstelle ein neues Spiel
+        </p>
+      </div>
+
+      <.form
+        for={@form}
+        id="game-setup-form"
+        phx-change="validate"
+        phx-submit="save"
+        class="space-y-7"
+      >
+        <.render_rounds_and_time_inputs form={@form} />
+        <.render_word_types_selector form={@form} />
+        <.render_grid_size_selector form={@form} />
+
+        <.error_banner :if={@words_error} message={@words_error} class="items-start" />
+
+        <.gradient_button
+          type="submit"
+          disabled={!@can_create_game}
+          class={[
+            "text-lg",
+            !@can_create_game &&
+              "!bg-gray-300 dark:!bg-gray-700 !text-gray-500 !cursor-not-allowed !opacity-60 !shadow-none hover:!scale-100"
+          ]}
+        >
+          Einladungslink generieren
+        </.gradient_button>
+      </.form>
+    </.glass_card>
+    """
+  end
+
+  defp render_rounds_and_time_inputs(assigns) do
+    ~H"""
+    <div class="grid grid-cols-2 gap-3">
+      <div class="space-y-2">
+        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+          Wie viele Runden?
+        </label>
+        <.glass_input
+          type="number"
+          name="game[rounds_count]"
+          value={@form[:rounds_count].value || 3}
+          min="1"
+          max="20"
+          class="text-lg"
+        />
+      </div>
+
+      <div class="space-y-2">
+        <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+          Zeit für Hinweise
+        </label>
+        <div class="relative group">
+          <div class="absolute inset-0 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl opacity-0 group-hover:opacity-10 transition-opacity duration-300">
+          </div>
+          <select
+            name="game[clues_interval]"
+            class="relative w-full text-lg px-4 py-3.5 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-xl focus:border-purple-500 dark:focus:border-purple-400 focus:ring-4 focus:ring-purple-100 dark:focus:ring-purple-900/30 transition-all duration-200 dark:text-white outline-none cursor-pointer appearance-none"
+          >
+            <option value="3" selected={@form[:clues_interval].value == "3"}>3 Sek.</option>
+            <option value="6" selected={@form[:clues_interval].value == "6"}>6 Sek.</option>
+            <option
+              value="9"
+              selected={@form[:clues_interval].value == "9" || !@form[:clues_interval].value}
+            >
+              9 Sek.
+            </option>
+            <option value="10" selected={@form[:clues_interval].value == "10"}>10 Sek.</option>
+            <option value="12" selected={@form[:clues_interval].value == "12"}>12 Sek.</option>
+            <option value="15" selected={@form[:clues_interval].value == "15"}>15 Sek.</option>
+            <option value="20" selected={@form[:clues_interval].value == "20"}>20 Sek.</option>
+            <option value="30" selected={@form[:clues_interval].value == "30"}>30 Sek.</option>
+            <option value="45" selected={@form[:clues_interval].value == "45"}>45 Sek.</option>
+            <option value="60" selected={@form[:clues_interval].value == "60"}>60 Sek.</option>
+          </select>
+          <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
+              </path>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp render_word_types_selector(assigns) do
+    ~H"""
+    <details class="group/details" id="word-types-details">
+      <summary class="flex items-center justify-between cursor-pointer list-none px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 transition-all duration-200">
+        <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+          Wortarten (optional)
+        </span>
+        <svg
+          class="w-5 h-5 text-gray-500 transition-transform duration-200 group-open/details:rotate-180"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
+          </path>
+        </svg>
+      </summary>
+      <div class="mt-3 space-y-3">
+        <div class="grid grid-cols-2 gap-3" data-stop-propagation>
+          <.checkbox_button
+            name="game[word_types][]"
+            value="Noun"
+            checked={"Noun" in (@form[:word_types].value || [])}
+            label="Nomen"
+            phx-click={JS.dispatch("click", to: "#word-type-noun")}
+          />
+          <input
+            type="checkbox"
+            id="word-type-noun"
+            name="game[word_types][]"
+            value="Noun"
+            checked={"Noun" in (@form[:word_types].value || [])}
+            class="hidden"
+          />
+
+          <.checkbox_button
+            name="game[word_types][]"
+            value="Verb"
+            checked={"Verb" in (@form[:word_types].value || [])}
+            label="Verb"
+            gradient="from-blue-500 to-cyan-500"
+            phx-click={JS.dispatch("click", to: "#word-type-verb")}
+          />
+          <input
+            type="checkbox"
+            id="word-type-verb"
+            name="game[word_types][]"
+            value="Verb"
+            checked={"Verb" in (@form[:word_types].value || [])}
+            class="hidden"
+          />
+
+          <.checkbox_button
+            name="game[word_types][]"
+            value="Adjective"
+            checked={"Adjective" in (@form[:word_types].value || [])}
+            label="Adjektiv"
+            gradient="from-green-500 to-emerald-500"
+            phx-click={JS.dispatch("click", to: "#word-type-adjective")}
+          />
+          <input
+            type="checkbox"
+            id="word-type-adjective"
+            name="game[word_types][]"
+            value="Adjective"
+            checked={"Adjective" in (@form[:word_types].value || [])}
+            class="hidden"
+          />
+
+          <.checkbox_button
+            name="game[word_types][]"
+            value="Adverb"
+            checked={"Adverb" in (@form[:word_types].value || [])}
+            label="Adverb"
+            gradient="from-yellow-500 to-orange-500"
+            phx-click={JS.dispatch("click", to: "#word-type-adverb")}
+          />
+          <input
+            type="checkbox"
+            id="word-type-adverb"
+            name="game[word_types][]"
+            value="Adverb"
+            checked={"Adverb" in (@form[:word_types].value || [])}
+            class="hidden"
+          />
+
+          <.checkbox_button
+            name="game[word_types][]"
+            value="Other"
+            checked={"Other" in (@form[:word_types].value || [])}
+            label="Andere"
+            gradient="from-pink-500 to-rose-500"
+            phx-click={JS.dispatch("click", to: "#word-type-other")}
+          />
+          <input
+            type="checkbox"
+            id="word-type-other"
+            name="game[word_types][]"
+            value="Other"
+            checked={"Other" in (@form[:word_types].value || [])}
+            class="hidden"
+          />
+        </div>
+      </div>
+    </details>
+    """
+  end
+
+  defp render_grid_size_selector(assigns) do
+    ~H"""
+    <div class="space-y-3">
+      <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+        Spielfeld Größe
+      </label>
+      <div class="grid grid-cols-2 gap-3">
+        <.radio_button
+          name="game[grid_size]"
+          value="2"
+          checked={@form[:grid_size].value == "2"}
+          label="2x1"
+          phx-click={JS.dispatch("click", to: "#grid-2")}
+        />
+        <input
+          type="radio"
+          id="grid-2"
+          name="game[grid_size]"
+          value="2"
+          checked={@form[:grid_size].value == "2"}
+          class="hidden"
+        />
+
+        <.radio_button
+          name="game[grid_size]"
+          value="4"
+          checked={@form[:grid_size].value == "4"}
+          label="2x2"
+          gradient="from-blue-500 to-cyan-500"
+          phx-click={JS.dispatch("click", to: "#grid-4")}
+        />
+        <input
+          type="radio"
+          id="grid-4"
+          name="game[grid_size]"
+          value="4"
+          checked={@form[:grid_size].value == "4"}
+          class="hidden"
+        />
+
+        <.radio_button
+          name="game[grid_size]"
+          value="9"
+          checked={@form[:grid_size].value == "9" || !@form[:grid_size].value}
+          label="3x3"
+          gradient="from-indigo-500 to-purple-500"
+          phx-click={JS.dispatch("click", to: "#grid-9")}
+        />
+        <input
+          type="radio"
+          id="grid-9"
+          name="game[grid_size]"
+          value="9"
+          checked={@form[:grid_size].value == "9" || !@form[:grid_size].value}
+          class="hidden"
+        />
+
+        <.radio_button
+          name="game[grid_size]"
+          value="16"
+          checked={@form[:grid_size].value == "16"}
+          label="4x4"
+          gradient="from-orange-500 to-red-500"
+          phx-click={JS.dispatch("click", to: "#grid-16")}
+        />
+        <input
+          type="radio"
+          id="grid-16"
+          name="game[grid_size]"
+          value="16"
+          checked={@form[:grid_size].value == "16"}
+          class="hidden"
+        />
       </div>
     </div>
     """

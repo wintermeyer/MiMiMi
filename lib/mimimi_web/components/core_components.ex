@@ -524,7 +524,7 @@ defmodule MimimiWeb.CoreComponents do
   attr :hover_shadow_color, :string, default: "shadow-purple-500/40"
   attr :size, :string, default: "md", values: ~w(sm md lg)
   attr :full_width, :boolean, default: true
-  attr :class, :string, default: nil
+  attr :class, :any, default: nil
   attr :rest, :global, include: ~w(disabled phx-click phx-value-id type)
   slot :inner_block, required: true
 
@@ -576,7 +576,10 @@ defmodule MimimiWeb.CoreComponents do
   attr :gradient, :string, default: "from-purple-500 to-pink-500"
   attr :placeholder, :string, default: nil
   attr :class, :string, default: nil
-  attr :rest, :global
+
+  attr :rest, :global,
+    include:
+      ~w(disabled form min max maxlength minlength pattern autocomplete inputmode required readonly)
 
   def glass_input(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
     assigns
@@ -715,6 +718,195 @@ defmodule MimimiWeb.CoreComponents do
         class={["h-full bg-gradient-to-r transition-all duration-500", @gradient]}
         style={"width: #{@value}%"}
       >
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a page container with gradient background.
+
+  ## Examples
+
+      <.page_container>
+        <.glass_card class="p-8">
+          Content here
+        </.glass_card>
+      </.page_container>
+  """
+  attr :class, :string, default: nil
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  def page_container(assigns) do
+    ~H"""
+    <div
+      class={[
+        "min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900",
+        @class
+      ]}
+      {@rest}
+    >
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a checkbox styled as a button with gradient effect when selected.
+
+  ## Examples
+
+      <.checkbox_button name="word_types[]" value="noun" checked={@form_data["noun"]} label="Nomen" />
+      <.checkbox_button name="types[]" value="verb" checked={true} label="Verb" gradient="from-blue-500 to-cyan-500" />
+  """
+  attr :name, :string, required: true
+  attr :value, :string, required: true
+  attr :checked, :boolean, required: true
+  attr :label, :string, required: true
+  attr :gradient, :string, default: "from-purple-500 to-pink-500"
+  attr :class, :string, default: nil
+  attr :rest, :global
+
+  def checkbox_button(assigns) do
+    ~H"""
+    <label class={["relative cursor-pointer", @class]}>
+      <input
+        type="checkbox"
+        name={@name}
+        value={@value}
+        checked={@checked}
+        class="hidden peer"
+        {@rest}
+      />
+      <div class={[
+        "relative overflow-hidden rounded-2xl p-4 text-center border-2 transition-all duration-200",
+        "peer-checked:border-transparent peer-checked:text-white peer-checked:shadow-xl",
+        "border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300",
+        "hover:border-gray-300 dark:hover:border-gray-600"
+      ]}>
+        <div class={[
+          "absolute inset-0 bg-gradient-to-r opacity-0 peer-checked:opacity-100 transition-opacity duration-200",
+          @gradient
+        ]}>
+        </div>
+        <span class="relative font-semibold">{@label}</span>
+      </div>
+    </label>
+    """
+  end
+
+  @doc """
+  Renders a radio button styled as a button with gradient effect when selected.
+
+  ## Examples
+
+      <.radio_button name="grid_size" value="2" checked={@grid_size == "2"} label="2×2" />
+      <.radio_button name="size" value="4" checked={true} label="4×4" gradient="from-green-500 to-emerald-500" />
+  """
+  attr :name, :string, required: true
+  attr :value, :string, required: true
+  attr :checked, :boolean, required: true
+  attr :label, :string, required: true
+  attr :gradient, :string, default: "from-purple-500 to-pink-500"
+  attr :class, :string, default: nil
+  attr :rest, :global
+
+  def radio_button(assigns) do
+    ~H"""
+    <label class={["relative cursor-pointer", @class]}>
+      <input
+        type="radio"
+        name={@name}
+        value={@value}
+        checked={@checked}
+        class="hidden peer"
+        {@rest}
+      />
+      <div class={[
+        "relative overflow-hidden rounded-2xl p-4 text-center border-2 transition-all duration-200",
+        "peer-checked:border-transparent peer-checked:text-white peer-checked:shadow-xl",
+        "border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300",
+        "hover:border-gray-300 dark:hover:border-gray-600"
+      ]}>
+        <div class={[
+          "absolute inset-0 bg-gradient-to-r opacity-0 peer-checked:opacity-100 transition-opacity duration-200",
+          @gradient
+        ]}>
+        </div>
+        <span class="relative font-semibold">{@label}</span>
+      </div>
+    </label>
+    """
+  end
+
+  @doc """
+  Renders an error banner with icon and message.
+
+  ## Examples
+
+      <.error_banner message="Spielraum nicht gefunden" />
+      <.error_banner message={@error} />
+  """
+  attr :message, :string, required: true
+  attr :class, :string, default: nil
+
+  def error_banner(assigns) do
+    ~H"""
+    <div class={[
+      "flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl",
+      @class
+    ]}>
+      <span class="text-lg">⚠️</span>
+      <p class="text-sm text-red-600 dark:text-red-400 font-medium">{@message}</p>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a loading spinner.
+
+  ## Examples
+
+      <.spinner />
+      <.spinner class="h-16 w-16" />
+      <.spinner color="border-blue-600 dark:border-blue-400" />
+  """
+  attr :class, :string, default: nil
+  attr :color, :string, default: "border-purple-600 dark:border-purple-400"
+
+  def spinner(assigns) do
+    ~H"""
+    <div class={[
+      "animate-spin rounded-full border-b-2 mx-auto",
+      @color,
+      @class || "h-12 w-12"
+    ]}>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a divider with centered text.
+
+  ## Examples
+
+      <.divider_with_text text="oder" />
+      <.divider_with_text text="ODER" />
+  """
+  attr :text, :string, required: true
+  attr :class, :string, default: nil
+
+  def divider_with_text(assigns) do
+    ~H"""
+    <div class={["relative", @class]}>
+      <div class="absolute inset-0 flex items-center">
+        <div class="w-full border-t-2 border-gray-200 dark:border-gray-700"></div>
+      </div>
+      <div class="relative flex justify-center">
+        <span class="px-4 text-sm font-semibold text-gray-500 dark:text-gray-400 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900">
+          {@text}
+        </span>
       </div>
     </div>
     """

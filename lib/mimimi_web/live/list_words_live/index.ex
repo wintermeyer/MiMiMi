@@ -148,9 +148,8 @@ defmodule MimimiWeb.ListWordsLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen px-4 py-12 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900">
+    <.page_container class="!px-4">
       <div class="w-full max-w-6xl mx-auto">
-        <%!-- Glassmorphism Header --%>
         <div class="text-center mb-10">
           <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
             Wörterliste
@@ -160,9 +159,8 @@ defmodule MimimiWeb.ListWordsLive.Index do
           </p>
         </div>
 
-        <%!-- Filter Controls --%>
         <div class="mb-8 max-w-md mx-auto">
-          <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-2xl p-6 shadow-xl border border-gray-200/50 dark:border-gray-700/50">
+          <.glass_card class="p-6">
             <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
               Mindestanzahl Stichwörter: {@min_keywords}
             </label>
@@ -185,10 +183,9 @@ defmodule MimimiWeb.ListWordsLive.Index do
                 <span>{@max_keywords}</span>
               </div>
             </form>
-          </div>
+          </.glass_card>
         </div>
 
-        <%!-- Loading Progress --%>
         <div class="mb-6 text-center">
           <p class="text-lg text-gray-600 dark:text-gray-400">
             <span class="font-semibold text-purple-600 dark:text-purple-400">{@loaded_count}</span>
@@ -199,17 +196,13 @@ defmodule MimimiWeb.ListWordsLive.Index do
             Wörter geladen
           </p>
           <%= if @loading do %>
-            <div class="mt-3 w-full max-w-md mx-auto bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-              <div
-                class="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-300"
-                style={"width: #{if @total_count > 0, do: (@loaded_count / @total_count * 100), else: 0}%"}
-              >
-              </div>
-            </div>
+            <.progress_bar
+              value={if @total_count > 0, do: round(@loaded_count / @total_count * 100), else: 0}
+              class="mt-3 max-w-md mx-auto"
+            />
           <% end %>
         </div>
 
-        <%!-- Words Grid with Streams --%>
         <div
           id="words-grid"
           class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
@@ -222,7 +215,6 @@ defmodule MimimiWeb.ListWordsLive.Index do
             class="opacity-0 backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-6 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 hover:shadow-purple-500/20 hover:scale-[1.02] transition-all duration-300"
             data-word-card
           >
-            <%!-- Word Image --%>
             <div class="relative aspect-square rounded-2xl overflow-hidden mb-4 bg-gray-100 dark:bg-gray-900">
               <img
                 src={word.image_url}
@@ -232,12 +224,10 @@ defmodule MimimiWeb.ListWordsLive.Index do
               />
             </div>
 
-            <%!-- Word Name --%>
             <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-3 text-center">
               {word.name}
             </h2>
 
-            <%!-- Keywords --%>
             <div class="space-y-2">
               <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                 Stichwörter:
@@ -254,17 +244,16 @@ defmodule MimimiWeb.ListWordsLive.Index do
           </div>
         </div>
 
-        <%!-- Empty State --%>
         <div :if={@total_count == 0 && !@loading} class="text-center py-16">
-          <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-12 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
+          <.glass_card class="p-12">
             <div class="text-6xl mb-4 opacity-50">📭</div>
             <p class="text-xl text-gray-600 dark:text-gray-400">
               Keine Wörter mit Stichwörtern und Bildern gefunden
             </p>
-          </div>
+          </.glass_card>
         </div>
       </div>
-    </div>
+    </.page_container>
     """
   end
 end

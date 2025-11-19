@@ -166,9 +166,8 @@ defmodule MimimiWeb.AvatarLive.Choose do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900">
+    <.page_container>
       <div class="w-full max-w-3xl">
-        <%!-- Header --%>
         <div class="text-center mb-10">
           <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
             Wähle dein Tier
@@ -178,8 +177,7 @@ defmodule MimimiWeb.AvatarLive.Choose do
           </p>
         </div>
 
-        <%!-- Avatar Grid Card --%>
-        <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
+        <.glass_card class="p-8">
           <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
             <%= for {avatar, available} <- @avatars do %>
               <button
@@ -217,9 +215,9 @@ defmodule MimimiWeb.AvatarLive.Choose do
               </button>
             <% end %>
           </div>
-        </div>
+        </.glass_card>
       </div>
-    </div>
+    </.page_container>
     """
   end
 end

@@ -223,6 +223,88 @@ defmodule MimimiWeb.GameComponents do
   end
 
   @doc """
+  Renders a single keyword badge with reveal state and progress indicator.
+
+  This component shows a keyword in one of three states:
+  - Revealed: Shows the keyword text with gradient background
+  - Current: Shows the keyword text with progress bar animation
+  - Upcoming: Shows "???" as placeholder
+
+  ## Examples
+
+      <.keyword_badge
+        keyword={keyword}
+        index={1}
+        keywords_revealed={@keywords_revealed}
+        time_elapsed={@time_elapsed}
+        clues_interval={@game.clues_interval}
+      />
+  """
+  attr :keyword, :map, required: true
+  attr :index, :integer, required: true
+  attr :keywords_revealed, :integer, required: true
+  attr :time_elapsed, :integer, required: true
+  attr :clues_interval, :integer, required: true
+  attr :class, :string, default: nil
+
+  def keyword_badge(assigns) do
+    ~H"""
+    <% # A keyword is fully revealed if we've moved past it
+    is_revealed = @index < @keywords_revealed
+    # The current keyword is the one being revealed right now
+    is_current = @index == @keywords_revealed
+    # Not yet reached
+    is_upcoming = @index > @keywords_revealed
+
+    # Calculate progress for the current keyword
+    progress_percent =
+      if is_current && @keywords_revealed > 0 do
+        # Time since this keyword was revealed
+        # For keyword N, it was revealed at time (N-1) * interval
+        # So the time it's been showing is: elapsed - (N-1) * interval
+        keyword_revealed_at = (@keywords_revealed - 1) * @clues_interval
+        time_showing = @time_elapsed - keyword_revealed_at
+
+        # Progress is how much of the interval has passed
+        min(time_showing / @clues_interval * 100, 100) |> round()
+      else
+        0
+      end %>
+    <div class={
+      [
+        "relative overflow-hidden px-4 py-2 rounded-2xl font-semibold transition-all duration-300 transform",
+        cond do
+          is_revealed ->
+            # Fully revealed keywords show with purple gradient
+            "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg scale-100"
+
+          is_current ->
+            # Current keyword shows gray background with progress bar
+            "bg-gray-300 dark:bg-gray-700 text-gray-900 dark:text-gray-100 scale-100"
+
+          is_upcoming ->
+            # Upcoming keywords are dimmed
+            "bg-gray-300 dark:bg-gray-700 text-gray-400 dark:text-gray-500 scale-95 opacity-60"
+        end,
+        @class
+      ]
+    }>
+      <%= if is_current && progress_percent > 0 do %>
+        <%!-- Progress bar for current keyword --%>
+        <div
+          class="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 opacity-30"
+          style={"width: #{progress_percent}%; transition: width 0.5s linear;"}
+        >
+        </div>
+      <% end %>
+      <span class="relative z-10">
+        {if is_revealed || is_current, do: @keyword.name, else: "???"}
+      </span>
+    </div>
+    """
+  end
+
+  @doc """
   Renders a page header with gradient icon badge.
 
   ## Examples

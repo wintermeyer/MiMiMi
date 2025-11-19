@@ -156,272 +156,242 @@ defmodule MimimiWeb.DebugLive.Index do
     ~H"""
     <div class="min-h-screen px-4 py-12 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900">
       <div class="w-full max-w-4xl mx-auto">
-        <%!-- Header --%>
-        <div class="text-center mb-10">
-          <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-            WortSchule Debug
-          </h1>
-          <p class="text-gray-500 dark:text-gray-400 text-sm">
-            Database connection and table statistics
-          </p>
-        </div>
+        <.page_header />
 
-        <%!-- System Info Card --%>
-        <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 mb-6">
-          <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-            System Information
-          </h2>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="flex items-center gap-3 p-4 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl">
-              <div class="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg">
-                <span class="text-xl">💧</span>
-              </div>
-              <div>
-                <p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">
-                  Elixir
-                </p>
-                <p class="text-lg font-bold text-gray-900 dark:text-white">
-                  {@system_info.elixir_version}
-                </p>
-              </div>
-            </div>
+        <.system_info_card system_info={@system_info} />
 
-            <div class="flex items-center gap-3 p-4 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl">
-              <div class="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 shadow-lg">
-                <span class="text-xl">🔥</span>
-              </div>
-              <div>
-                <p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">
-                  Phoenix
-                </p>
-                <p class="text-lg font-bold text-gray-900 dark:text-white">
-                  {@system_info.phoenix_version}
-                </p>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-3 p-4 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl">
-              <div class="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 shadow-lg">
-                <span class="text-xl">📦</span>
-              </div>
-              <div>
-                <p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">
-                  App Version
-                </p>
-                <p class="text-lg font-bold text-gray-900 dark:text-white">
-                  {@system_info.app_version}
-                </p>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-3 p-4 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl">
-              <div class="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 shadow-lg">
-                <span class="text-xl">⏰</span>
-              </div>
-              <div>
-                <p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">
-                  Build Time
-                </p>
-                <p class="text-lg font-bold text-gray-900 dark:text-white">
-                  {@system_info.deployment_timestamp}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <%!-- Image URL Cache Card --%>
-        <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 mb-6">
-          <div class="flex items-center justify-between mb-6">
-            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
-              Image URL Cache
-            </h2>
-            <button
-              phx-click="clear_cache"
-              class="relative px-4 py-2 bg-gradient-to-r from-red-600 via-red-500 to-orange-500 hover:from-red-700 hover:via-red-600 hover:to-orange-600 text-white rounded-xl shadow-lg shadow-red-500/30 hover:shadow-xl hover:shadow-red-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 font-semibold overflow-hidden group"
-            >
-              <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700">
-              </div>
-              <span class="relative">Cache leeren</span>
-            </button>
-          </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div class="flex items-center gap-3 p-4 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl">
-              <div class="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 shadow-lg">
-                <span class="text-xl">📊</span>
-              </div>
-              <div>
-                <p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">
-                  Total
-                </p>
-                <p class="text-lg font-bold text-gray-900 dark:text-white">
-                  {@cache_stats.total}
-                </p>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-3 p-4 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl">
-              <div class="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 shadow-lg">
-                <span class="text-xl">✓</span>
-              </div>
-              <div>
-                <p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">
-                  Aktiv
-                </p>
-                <p class="text-lg font-bold text-gray-900 dark:text-white">
-                  {@cache_stats.active}
-                </p>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-3 p-4 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl">
-              <div class="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 shadow-lg">
-                <span class="text-xl">⏳</span>
-              </div>
-              <div>
-                <p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">
-                  Abgelaufen
-                </p>
-                <p class="text-lg font-bold text-gray-900 dark:text-white">
-                  {@cache_stats.expired}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <p class="mt-4 text-sm text-gray-600 dark:text-gray-400">
-            Der Cache speichert Bild-URLs für 24 Stunden, um API-Aufrufe zu minimieren.
-          </p>
-        </div>
+        <.cache_card cache_stats={@cache_stats} />
 
         <%= if @loading do %>
-          <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
-            <div class="text-center py-8">
-              <div class="text-6xl mb-4 opacity-50">⏳</div>
-              <p class="text-gray-600 dark:text-gray-400">Lade Statistiken...</p>
-            </div>
-          </div>
+          <.loading_card />
         <% else %>
-          <%!-- Connection Status Card --%>
-          <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 mb-6">
-            <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-              Connection Status
-            </h2>
-            <div class="flex items-center gap-3">
-              <%= if @stats.connection_status == :connected do %>
-                <div class="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 shadow-lg">
-                  <span class="text-2xl">✓</span>
-                </div>
-                <div>
-                  <p class="text-lg font-semibold text-gray-900 dark:text-white">Connected</p>
-                  <p class="text-sm text-gray-600 dark:text-gray-400">
-                    Database connection successful
-                  </p>
-                </div>
-              <% else %>
-                <div class="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-red-500 to-orange-500 shadow-lg">
-                  <span class="text-2xl">✗</span>
-                </div>
-                <div>
-                  <p class="text-lg font-semibold text-gray-900 dark:text-white">Error</p>
-                  <p class="text-sm text-red-600 dark:text-red-400 font-mono">
-                    {elem(@stats.connection_status, 1)}
-                  </p>
-                </div>
-              <% end %>
-            </div>
-          </div>
+          <.connection_status_card status={@stats.connection_status} />
 
-          <%!-- Tables Statistics Card --%>
-          <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 mb-6">
-            <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-              Database Tables
-            </h2>
+          <.database_stats_card stats={@stats} />
 
-            <div class="space-y-4">
-              <.stat_row
-                label="Words (Total)"
-                value={@stats.words_total}
-                icon="📝"
-                gradient="from-purple-500 to-pink-500"
-              />
-              <.stat_row
-                label="Words with Images"
-                value={@stats.words_with_images}
-                icon="🖼️"
-                gradient="from-blue-500 to-cyan-500"
-              />
-              <.stat_row
-                label="Words with Keywords"
-                value={@stats.words_with_keywords}
-                icon="🏷️"
-                gradient="from-green-500 to-emerald-500"
-              />
-              <.stat_row
-                label="Words with Keywords & Images"
-                value={@stats.words_with_both}
-                icon="✨"
-                gradient="from-yellow-500 to-orange-500"
-              />
-              <.stat_row
-                label="Keywords (Associations)"
-                value={@stats.keywords_total}
-                icon="🔗"
-                gradient="from-indigo-500 to-purple-500"
-              />
-              <.stat_row
-                label="Active Storage Attachments"
-                value={@stats.active_storage_attachments}
-                icon="📎"
-                gradient="from-orange-500 to-red-500"
-              />
-              <.stat_row
-                label="Active Storage Blobs"
-                value={@stats.active_storage_blobs}
-                icon="💾"
-                gradient="from-pink-500 to-rose-500"
-              />
-            </div>
-          </div>
-
-          <%!-- Links Section --%>
-          <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
-            <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-              Links
-            </h2>
-
-            <div class="space-y-3">
-              <a
-                href="https://spiel.wort.schule/list_words"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="relative group overflow-hidden rounded-2xl block"
-              >
-                <div class="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
-                </div>
-                <div class="relative flex items-center justify-between p-4 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl group-hover:border-purple-400 dark:group-hover:border-purple-500 transition-all duration-200">
-                  <div class="flex items-center gap-3">
-                    <div class="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg">
-                      <span class="text-xl">📚</span>
-                    </div>
-                    <span class="font-semibold text-gray-900 dark:text-white">
-                      WortSchule Wortliste
-                    </span>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <span class="text-sm text-gray-500 dark:text-gray-400 font-mono">
-                      spiel.wort.schule
-                    </span>
-                    <span class="text-gray-400 dark:text-gray-500">↗</span>
-                  </div>
-                </div>
-              </a>
-            </div>
-          </div>
+          <.links_card />
         <% end %>
       </div>
     </div>
+    """
+  end
+
+  defp page_header(assigns) do
+    ~H"""
+    <div class="text-center mb-10">
+      <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
+        WortSchule Debug
+      </h1>
+      <p class="text-gray-500 dark:text-gray-400 text-sm">
+        Database connection and table statistics
+      </p>
+    </div>
+    """
+  end
+
+  defp system_info_card(assigns) do
+    ~H"""
+    <.glass_card class="p-8 mb-6">
+      <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+        System Information
+      </h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <.info_stat
+          icon="💧"
+          label="Elixir"
+          value={@system_info.elixir_version}
+          gradient="from-purple-500 to-pink-500"
+        />
+        <.info_stat
+          icon="🔥"
+          label="Phoenix"
+          value={@system_info.phoenix_version}
+          gradient="from-orange-500 to-red-500"
+        />
+        <.info_stat
+          icon="📦"
+          label="App Version"
+          value={@system_info.app_version}
+          gradient="from-green-500 to-emerald-500"
+        />
+        <.info_stat
+          icon="⏰"
+          label="Build Time"
+          value={@system_info.deployment_timestamp}
+          gradient="from-blue-500 to-cyan-500"
+        />
+      </div>
+    </.glass_card>
+    """
+  end
+
+  defp info_stat(assigns) do
+    ~H"""
+    <div class="flex items-center gap-3 p-4 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl">
+      <.gradient_icon_badge icon={@icon} gradient={@gradient} size="sm" class="mb-0" />
+      <div>
+        <p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">
+          {@label}
+        </p>
+        <p class="text-lg font-bold text-gray-900 dark:text-white">
+          {@value}
+        </p>
+      </div>
+    </div>
+    """
+  end
+
+  defp cache_card(assigns) do
+    ~H"""
+    <.glass_card class="p-8 mb-6">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
+          Image URL Cache
+        </h2>
+        <.gradient_button
+          phx-click="clear_cache"
+          gradient="from-red-600 via-red-500 to-orange-500"
+          hover_gradient="from-red-700 via-red-600 to-orange-600"
+          shadow_color="shadow-red-500/30"
+          hover_shadow_color="shadow-red-500/40"
+          size="sm"
+          full_width={false}
+          class="px-4 py-2"
+        >
+          Cache leeren
+        </.gradient_button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <.info_stat
+          icon="📊"
+          label="Total"
+          value={@cache_stats.total}
+          gradient="from-blue-500 to-cyan-500"
+        />
+        <.info_stat
+          icon="✓"
+          label="Aktiv"
+          value={@cache_stats.active}
+          gradient="from-green-500 to-emerald-500"
+        />
+        <.info_stat
+          icon="⏳"
+          label="Abgelaufen"
+          value={@cache_stats.expired}
+          gradient="from-orange-500 to-red-500"
+        />
+      </div>
+
+      <p class="mt-4 text-sm text-gray-600 dark:text-gray-400">
+        Der Cache speichert Bild-URLs für 24 Stunden, um API-Aufrufe zu minimieren.
+      </p>
+    </.glass_card>
+    """
+  end
+
+  defp loading_card(assigns) do
+    ~H"""
+    <.glass_card class="p-8">
+      <div class="text-center py-8">
+        <div class="text-6xl mb-4 opacity-50">⏳</div>
+        <p class="text-gray-600 dark:text-gray-400">Lade Statistiken...</p>
+      </div>
+    </.glass_card>
+    """
+  end
+
+  defp connection_status_card(assigns) do
+    ~H"""
+    <.glass_card class="p-8 mb-6">
+      <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+        Connection Status
+      </h2>
+      <div class="flex items-center gap-3">
+        <%= if @status == :connected do %>
+          <.gradient_icon_badge
+            icon="✓"
+            gradient="from-green-500 to-emerald-500"
+            size="sm"
+            class="mb-0"
+          />
+          <div>
+            <p class="text-lg font-semibold text-gray-900 dark:text-white">Connected</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              Database connection successful
+            </p>
+          </div>
+        <% else %>
+          <.gradient_icon_badge
+            icon="✗"
+            gradient="from-red-500 to-orange-500"
+            size="sm"
+            class="mb-0"
+          />
+          <div>
+            <p class="text-lg font-semibold text-gray-900 dark:text-white">Error</p>
+            <p class="text-sm text-red-600 dark:text-red-400 font-mono">
+              {elem(@status, 1)}
+            </p>
+          </div>
+        <% end %>
+      </div>
+    </.glass_card>
+    """
+  end
+
+  defp database_stats_card(assigns) do
+    ~H"""
+    <.glass_card class="p-8 mb-6">
+      <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+        Database Tables
+      </h2>
+
+      <div class="space-y-4">
+        <.stat_row
+          label="Words (Total)"
+          value={@stats.words_total}
+          icon="📝"
+          gradient="from-purple-500 to-pink-500"
+        />
+        <.stat_row
+          label="Words with Images"
+          value={@stats.words_with_images}
+          icon="🖼️"
+          gradient="from-blue-500 to-cyan-500"
+        />
+        <.stat_row
+          label="Words with Keywords"
+          value={@stats.words_with_keywords}
+          icon="🏷️"
+          gradient="from-green-500 to-emerald-500"
+        />
+        <.stat_row
+          label="Words with Keywords & Images"
+          value={@stats.words_with_both}
+          icon="✨"
+          gradient="from-yellow-500 to-orange-500"
+        />
+        <.stat_row
+          label="Keywords (Associations)"
+          value={@stats.keywords_total}
+          icon="🔗"
+          gradient="from-indigo-500 to-purple-500"
+        />
+        <.stat_row
+          label="Active Storage Attachments"
+          value={@stats.active_storage_attachments}
+          icon="📎"
+          gradient="from-orange-500 to-red-500"
+        />
+        <.stat_row
+          label="Active Storage Blobs"
+          value={@stats.active_storage_blobs}
+          icon="💾"
+          gradient="from-pink-500 to-rose-500"
+        />
+      </div>
+    </.glass_card>
     """
   end
 
@@ -432,9 +402,7 @@ defmodule MimimiWeb.DebugLive.Index do
       </div>
       <div class="relative flex items-center justify-between p-4 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl transition-all duration-200">
         <div class="flex items-center gap-3">
-          <div class={"flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br #{@gradient} shadow-lg"}>
-            <span class="text-xl">{@icon}</span>
-          </div>
+          <.gradient_icon_badge icon={@icon} gradient={@gradient} size="sm" class="mb-0" />
           <span class="font-semibold text-gray-900 dark:text-white">{@label}</span>
         </div>
         <div class="text-right">
@@ -451,6 +419,47 @@ defmodule MimimiWeb.DebugLive.Index do
         </div>
       </div>
     </div>
+    """
+  end
+
+  defp links_card(assigns) do
+    ~H"""
+    <.glass_card class="p-8">
+      <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+        Links
+      </h2>
+
+      <div class="space-y-3">
+        <a
+          href="https://spiel.wort.schule/list_words"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="relative group overflow-hidden rounded-2xl block"
+        >
+          <div class="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
+          </div>
+          <div class="relative flex items-center justify-between p-4 bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-2xl group-hover:border-purple-400 dark:group-hover:border-purple-500 transition-all duration-200">
+            <div class="flex items-center gap-3">
+              <.gradient_icon_badge
+                icon="📚"
+                gradient="from-purple-500 to-pink-500"
+                size="sm"
+                class="mb-0"
+              />
+              <span class="font-semibold text-gray-900 dark:text-white">
+                WortSchule Wortliste
+              </span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-sm text-gray-500 dark:text-gray-400 font-mono">
+                spiel.wort.schule
+              </span>
+              <span class="text-gray-400 dark:text-gray-500">↗</span>
+            </div>
+          </div>
+        </a>
+      </div>
+    </.glass_card>
     """
   end
 end
