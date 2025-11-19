@@ -13,6 +13,10 @@ defmodule Mimimi.Games do
   @points_two_keywords 3
   @points_three_keywords 1
 
+  # Compile-time environment check
+  # IMPORTANT: Mix is not available in production releases, so we check at compile time
+  @test_env Mix.env() == :test
+
   # Game functions
 
   @doc """
@@ -360,8 +364,9 @@ defmodule Mimimi.Games do
   end
 
   # Helper to generate rounds - async in production, sync in test
+  # Uses @test_env compile-time check because Mix is not available in production releases
   defp generate_game_rounds(game) do
-    if Mix.env() == :test do
+    if @test_env do
       generate_rounds_sync(game)
     else
       generate_rounds_async_task(game)
