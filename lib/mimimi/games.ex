@@ -373,15 +373,47 @@ defmodule Mimimi.Games do
     require Logger
     caller_pid = self()
 
+    # Start a monitored task so we can detect if it crashes
     result =
-      Task.Supervisor.start_child(Mimimi.TaskSupervisor, fn ->
-        setup_sandbox_access(caller_pid)
-        generate_rounds_async(game)
-      end)
+      Task.Supervisor.start_child(
+        Mimimi.TaskSupervisor,
+        fn ->
+          # Ensure this process has access to the database connection pools
+          # This is important for async tasks in production
+          setup_sandbox_access(caller_pid)
+
+          # Log the process details for debugging
+          Logger.info(
+            "Async round generation task started for game #{game.id}, pid: #{inspect(self())}"
+          )
+
+          # Execute round generation with comprehensive error handling
+          try do
+            result = generate_rounds_async(game)
+
+            Logger.info(
+              "Async round generation completed for game #{game.id}: #{inspect(result)}"
+            )
+
+            result
+          catch
+            kind, reason ->
+              Logger.error(
+                "Async round generation crashed for game #{game.id}, kind: #{kind}, reason: #{inspect(reason)}\n#{Exception.format_stacktrace(__STACKTRACE__)}"
+              )
+
+              broadcast_to_game(game.id, :round_generation_failed)
+              reraise reason, __STACKTRACE__
+          end
+        end,
+        restart: :temporary
+      )
 
     case result do
-      {:ok, _pid} ->
-        Logger.info("Successfully started async round generation task for game #{game.id}")
+      {:ok, pid} ->
+        Logger.info(
+          "Successfully started async round generation task for game #{game.id}, task pid: #{inspect(pid)}"
+        )
 
       {:error, reason} ->
         Logger.error(
@@ -493,14 +525,23 @@ defmodule Mimimi.Games do
 
   # Fast single round generation - reuses the same word pool lookup
   defp generate_single_round_fast(game, position) do
+    require Logger
     alias Mimimi.WortSchule
+
+    Logger.info("Generating round #{position} for game #{game.id}")
 
     # Get word pools (this is cached by the database for subsequent calls)
     target_word_ids =
       WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 3, types: game.word_types)
 
+    Logger.info(
+      "Found #{length(target_word_ids)} target words for game #{game.id} round #{position}"
+    )
+
     all_word_ids =
       WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 1, types: game.word_types)
+
+    Logger.info("Found #{length(all_word_ids)} total words for game #{game.id} round #{position}")
 
     # Get already used target words from existing rounds to ensure uniqueness
     used_target_word_ids =
@@ -512,6 +553,19 @@ defmodule Mimimi.Games do
 
     # Remove already used target words from the pool
     available_target_word_ids = target_word_ids -- used_target_word_ids
+
+    # Validate we have enough words
+    if Enum.empty?(available_target_word_ids) do
+      raise "No available target words for game #{game.id} round #{position}. Total target words: #{length(target_word_ids)}, used: #{length(used_target_word_ids)}"
+    end
+
+    if Enum.empty?(all_word_ids) do
+      raise "No words available in word pool for game #{game.id} round #{position}"
+    end
+
+    Logger.info(
+      "Available target words: #{length(available_target_word_ids)} for game #{game.id} round #{position}"
+    )
 
     # Generate single round by creating a temporary game with rounds_count = position
     # This ensures generate_rounds_data stops after generating just this one round
