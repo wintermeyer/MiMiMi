@@ -292,6 +292,18 @@ defmodule MimimiWeb.GameLive.Play do
     {:noreply, socket}
   end
 
+  def handle_info(:round_timeout, socket) do
+    # Round timeout triggered - all keywords have finished their countdown
+    # Advance to next round even if not all players picked
+    # This handles the case where one or more players didn't choose a word
+    Logger.info("GameLive.Play: Round timeout received for game #{socket.assigns.game.id}")
+
+    # Advance to next round after a brief delay to allow system to settle
+    # The show_feedback_and_advance handler checks if round is still playing,
+    # so multiple calls (from timeout + all_players_picked) are safe
+    {:noreply, Process.send_after(self(), :show_feedback_and_advance, 100)}
+  end
+
   def handle_info(:round_started, socket) do
     # Rounds are ready, load the first/next round
     socket =

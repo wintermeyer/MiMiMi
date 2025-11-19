@@ -69,7 +69,9 @@ defmodule Mimimi.GameServer do
        elapsed_seconds: 0,
        timer_ref: nil,
        keywords_revealed: 0,
-       round_state: :idle
+       keywords_total: 0,
+       round_state: :idle,
+       timeout_scheduled: false
      }}
   end
 
@@ -79,10 +81,16 @@ defmodule Mimimi.GameServer do
       Process.cancel_timer(state.timer_ref)
     end
 
+    # Get the round to determine how many keywords it has
+    round = Mimimi.Repo.get!(Games.Round, round_id)
+    keywords_total = length(round.keyword_ids)
+
     # Start a new timer that ticks every second, tagged with the round_id
     timer_ref = Process.send_after(self(), {:tick, round_id}, 1000)
 
-    Logger.info("GameServer: Starting round timer for game #{state.game_id}, round #{round_id}")
+    Logger.info(
+      "GameServer: Starting round timer for game #{state.game_id}, round #{round_id}, keywords: #{keywords_total}"
+    )
 
     # Immediately reveal the first keyword
     Games.broadcast_to_game(state.game_id, {:keyword_revealed, 1, 0})
@@ -95,7 +103,9 @@ defmodule Mimimi.GameServer do
          elapsed_seconds: 0,
          timer_ref: timer_ref,
          keywords_revealed: 1,
-         round_state: :playing
+         keywords_total: keywords_total,
+         round_state: :playing,
+         timeout_scheduled: false
      }}
   end
 
@@ -117,6 +127,24 @@ defmodule Mimimi.GameServer do
 
   def handle_call(:get_state, _from, state) do
     {:reply, state, state}
+  end
+
+  def handle_info({:round_timeout, round_id}, state) do
+    # Ignore timeouts from previous rounds
+    if round_id != state.round_id do
+      Logger.debug(
+        "GameServer: Ignoring stale timeout from round #{round_id}, current round is #{state.round_id}"
+      )
+
+      {:noreply, state}
+    else
+      Logger.info("GameServer: Round timeout triggered for game #{state.game_id}")
+      # Broadcast the timeout to all players - this will trigger round advancement
+      # even if not all players have picked a word
+      Games.broadcast_to_game(state.game_id, :round_timeout)
+
+      {:noreply, state}
+    end
   end
 
   def handle_info({:tick, round_id}, state) do
@@ -146,9 +174,27 @@ defmodule Mimimi.GameServer do
         Logger.debug("GameServer: Revealed keyword #{new_revealed} for game #{state.game_id}")
       end
 
+      # Check if all keywords have finished their countdown and schedule timeout if needed
+      # The last keyword finishes at time: keywords_total * clues_interval
+      # We only schedule timeout once all keywords are done
+      new_state =
+        if new_revealed >= state.keywords_total and
+             new_elapsed >= state.keywords_total * state.clues_interval and
+             not state.timeout_scheduled do
+          Logger.info(
+            "GameServer: All keywords countdown complete for game #{state.game_id}, scheduling round timeout"
+          )
+
+          # Schedule the timeout immediately - all keywords are done
+          Process.send_after(self(), {:round_timeout, round_id}, 0)
+          %{state | timeout_scheduled: true}
+        else
+          state
+        end
+
       {:noreply,
        %{
-         state
+         new_state
          | elapsed_seconds: new_elapsed,
            keywords_revealed: new_revealed,
            timer_ref: Process.send_after(self(), {:tick, round_id}, 1000)
