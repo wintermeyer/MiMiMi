@@ -760,6 +760,7 @@ defmodule MimimiWeb.CoreComponents do
       <.checkbox_button name="word_types[]" value="noun" checked={@form_data["noun"]} label="Nomen" />
       <.checkbox_button name="types[]" value="verb" checked={true} label="Verb" gradient="from-blue-500 to-cyan-500" />
   """
+  attr :id, :string, default: nil
   attr :name, :string, required: true
   attr :value, :string, required: true
   attr :checked, :boolean, required: true
@@ -773,6 +774,7 @@ defmodule MimimiWeb.CoreComponents do
     <label class={["relative cursor-pointer group", @class]}>
       <input
         type="checkbox"
+        id={@id}
         name={@name}
         value={@value}
         checked={@checked}
@@ -794,7 +796,9 @@ defmodule MimimiWeb.CoreComponents do
         <span class={[
           "relative z-10 font-semibold transition-colors duration-200",
           "text-gray-700 dark:text-gray-300 peer-checked:text-white"
-        ]}>{@label}</span>
+        ]}>
+          {@label}
+        </span>
       </div>
     </label>
     """
@@ -842,7 +846,9 @@ defmodule MimimiWeb.CoreComponents do
         <span class={[
           "relative z-10 font-semibold transition-colors duration-200",
           "text-gray-700 dark:text-gray-300 peer-checked:text-white"
-        ]}>{@label}</span>
+        ]}>
+          {@label}
+        </span>
       </div>
     </label>
     """

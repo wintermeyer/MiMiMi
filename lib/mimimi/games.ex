@@ -1372,34 +1372,43 @@ defmodule Mimimi.Games do
   Used when the host wants to cancel the game before it starts.
   """
   def cancel_game(game_id) do
-    case Repo.get(Game, game_id) do
-      nil ->
-        {:error, :not_found}
-
-      game ->
-        if game.state != "waiting_for_players" do
-          {:error, :game_already_started}
-        else
-          Repo.transaction(fn ->
-            # Delete all players in this game
-            from(p in Player, where: p.game_id == ^game_id)
-            |> Repo.delete_all()
-
-            # Delete the game invitation
-            from(i in GameInvite, where: i.game_id == ^game_id)
-            |> Repo.delete_all()
-
-            # Delete the game itself
-            Repo.delete!(game)
-          end)
-
-          # Broadcast to all connected users that the game was cancelled
-          broadcast_to_game(game_id, :game_cancelled)
-          broadcast_game_count_changed()
-
-          {:ok, :cancelled}
-        end
+    with {:ok, game} <- fetch_game(game_id),
+         :ok <- validate_game_can_be_cancelled(game),
+         {:ok, _} <- delete_game_and_related_data(game_id, game) do
+      broadcast_to_game(game_id, :game_cancelled)
+      broadcast_game_count_changed()
+      {:ok, :cancelled}
     end
+  end
+
+  defp fetch_game(game_id) do
+    case Repo.get(Game, game_id) do
+      nil -> {:error, :not_found}
+      game -> {:ok, game}
+    end
+  end
+
+  defp validate_game_can_be_cancelled(game) do
+    if game.state == "waiting_for_players" do
+      :ok
+    else
+      {:error, :game_already_started}
+    end
+  end
+
+  defp delete_game_and_related_data(game_id, game) do
+    Repo.transaction(fn ->
+      # Delete all players in this game
+      from(p in Player, where: p.game_id == ^game_id)
+      |> Repo.delete_all()
+
+      # Delete the game invitation
+      from(i in GameInvite, where: i.game_id == ^game_id)
+      |> Repo.delete_all()
+
+      # Delete the game itself
+      Repo.delete!(game)
+    end)
   end
 
   @doc """

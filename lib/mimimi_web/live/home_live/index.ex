@@ -334,6 +334,7 @@ defmodule MimimiWeb.HomeLive.Index do
       <div class="mt-3 space-y-3">
         <div class="grid grid-cols-2 gap-3">
           <.checkbox_button
+            id="word-type-noun"
             name="game[word_types][]"
             value="Noun"
             checked={"Noun" in (@form[:word_types].value || [])}
@@ -341,6 +342,7 @@ defmodule MimimiWeb.HomeLive.Index do
           />
 
           <.checkbox_button
+            id="word-type-verb"
             name="game[word_types][]"
             value="Verb"
             checked={"Verb" in (@form[:word_types].value || [])}
@@ -349,6 +351,7 @@ defmodule MimimiWeb.HomeLive.Index do
           />
 
           <.checkbox_button
+            id="word-type-adjective"
             name="game[word_types][]"
             value="Adjective"
             checked={"Adjective" in (@form[:word_types].value || [])}
@@ -357,6 +360,7 @@ defmodule MimimiWeb.HomeLive.Index do
           />
 
           <.checkbox_button
+            id="word-type-adverb"
             name="game[word_types][]"
             value="Adverb"
             checked={"Adverb" in (@form[:word_types].value || [])}
@@ -365,6 +369,7 @@ defmodule MimimiWeb.HomeLive.Index do
           />
 
           <.checkbox_button
+            id="word-type-other"
             name="game[word_types][]"
             value="Other"
             checked={"Other" in (@form[:word_types].value || [])}
