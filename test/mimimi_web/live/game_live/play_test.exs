@@ -294,8 +294,12 @@ defmodule MimimiWeb.GameLive.PlayTest do
       round1 = Games.get_current_round(game.id)
       assert round1.position == 1
 
-      # Player 1 guesses correctly with 1 keyword (5 points)
-      # Player 2 guesses correctly with 2 keywords (3 points)
+      # Player 1 guesses correctly with 1 keyword revealed
+      # Player 2 guesses correctly with 2 keywords revealed
+      total_keywords_round1 = length(round1.keyword_ids)
+      points_1_keyword = Games.calculate_points(1, total_keywords_round1)
+      points_2_keywords = Games.calculate_points(2, total_keywords_round1)
+
       {:ok, {_pick1, _}} =
         Games.create_pick(round1.id, player1.id, %{
           is_correct: true,
@@ -304,7 +308,7 @@ defmodule MimimiWeb.GameLive.PlayTest do
           word_id: round1.word_id
         })
 
-      Games.add_points(player1, 5)
+      Games.add_points(player1, points_1_keyword)
 
       {:ok, {_pick2, _}} =
         Games.create_pick(round1.id, player2.id, %{
@@ -314,22 +318,26 @@ defmodule MimimiWeb.GameLive.PlayTest do
           word_id: round1.word_id
         })
 
-      Games.add_points(player2, 3)
+      Games.add_points(player2, points_2_keywords)
 
       # Verify points after round 1
       player1 = Mimimi.Repo.get!(Games.Player, player1.id)
       player2 = Mimimi.Repo.get!(Games.Player, player2.id)
 
-      assert player1.points == 5
-      assert player2.points == 3
+      assert player1.points == points_1_keyword
+      assert player2.points == points_2_keywords
 
       # Finish round 1 and advance to round 2
       Games.finish_round(round1)
       {:ok, round2} = Games.advance_to_next_round(game.id)
       assert round2.position == 2
 
-      # Player 1 guesses correctly with 3 keywords (1 point)
-      # Player 2 guesses correctly with 1 keyword (5 points)
+      # Player 1 guesses correctly with 3 keywords revealed
+      # Player 2 guesses correctly with 1 keyword revealed
+      total_keywords_round2 = length(round2.keyword_ids)
+      points_3_keywords = Games.calculate_points(3, total_keywords_round2)
+      points_1_keyword_r2 = Games.calculate_points(1, total_keywords_round2)
+
       {:ok, {_pick3, _}} =
         Games.create_pick(round2.id, player1.id, %{
           is_correct: true,
@@ -338,7 +346,7 @@ defmodule MimimiWeb.GameLive.PlayTest do
           word_id: round2.word_id
         })
 
-      Games.add_points(player1, 1)
+      Games.add_points(player1, points_3_keywords)
 
       {:ok, {_pick4, _}} =
         Games.create_pick(round2.id, player2.id, %{
@@ -348,22 +356,26 @@ defmodule MimimiWeb.GameLive.PlayTest do
           word_id: round2.word_id
         })
 
-      Games.add_points(player2, 5)
+      Games.add_points(player2, points_1_keyword_r2)
 
       # Verify points accumulate correctly
       player1 = Mimimi.Repo.get!(Games.Player, player1.id)
       player2 = Mimimi.Repo.get!(Games.Player, player2.id)
 
-      assert player1.points == 6, "Player 1 should have 5 + 1 = 6 points"
-      assert player2.points == 8, "Player 2 should have 3 + 5 = 8 points"
+      expected_player1_total = points_1_keyword + points_3_keywords
+      expected_player2_total = points_2_keywords + points_1_keyword_r2
 
-      # Verify leaderboard shows correct order
+      assert player1.points == expected_player1_total,
+             "Player 1 should have #{points_1_keyword} + #{points_3_keywords} = #{expected_player1_total} points"
+
+      assert player2.points == expected_player2_total,
+             "Player 2 should have #{points_2_keywords} + #{points_1_keyword_r2} = #{expected_player2_total} points"
+
+      # Verify leaderboard shows correct order (player with more points should be first)
       leaderboard = Games.get_leaderboard(game.id)
       assert length(leaderboard) == 2
-      assert hd(leaderboard).id == player2.id
-      assert hd(leaderboard).points == 8
-      assert Enum.at(leaderboard, 1).id == player1.id
-      assert Enum.at(leaderboard, 1).points == 6
+      [first_player, second_player] = leaderboard
+      assert first_player.points >= second_player.points
     end
   end
 

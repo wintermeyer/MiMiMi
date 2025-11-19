@@ -417,7 +417,10 @@ defmodule MimimiWeb.GameLive.Play do
 
     is_correct = word_id == round.word_id
 
-    points = if is_correct, do: Games.calculate_points(socket.assigns.keywords_revealed), else: 0
+    points =
+      if is_correct,
+        do: Games.calculate_points(socket.assigns.keywords_revealed, length(round.keyword_ids)),
+        else: 0
 
     case Games.create_pick(round.id, player.id, %{
            is_correct: is_correct,

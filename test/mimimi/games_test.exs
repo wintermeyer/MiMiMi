@@ -380,23 +380,35 @@ defmodule Mimimi.GamesTest do
     end
   end
 
-  describe "calculate_points/1" do
-    test "returns 5 points for 1 keyword" do
-      assert Games.calculate_points(1) == 5
+  describe "calculate_points/2" do
+    test "calculates points correctly for 5-keyword words" do
+      # 5-keyword word: 5→4→3→2→1 points (20%, 40%, 60%, 80%, 100%)
+      assert Games.calculate_points(1, 5) == 5
+      assert Games.calculate_points(2, 5) == 4
+      assert Games.calculate_points(3, 5) == 3
+      assert Games.calculate_points(4, 5) == 2
+      assert Games.calculate_points(5, 5) == 1
     end
 
-    test "returns 3 points for 2 keywords" do
-      assert Games.calculate_points(2) == 3
+    test "calculates points correctly for 4-keyword words" do
+      # 4-keyword word: 4→3→2→1 points (25%, 50%, 75%, 100%)
+      assert Games.calculate_points(1, 4) == 4
+      assert Games.calculate_points(2, 4) == 3
+      assert Games.calculate_points(3, 4) == 2
+      assert Games.calculate_points(4, 4) == 1
     end
 
-    test "returns 1 point for 3 keywords" do
-      assert Games.calculate_points(3) == 1
+    test "calculates points correctly for 3-keyword words" do
+      # 3-keyword word: 4→2→1 points (33%, 67%, 100%)
+      assert Games.calculate_points(1, 3) == 4
+      assert Games.calculate_points(2, 3) == 2
+      assert Games.calculate_points(3, 3) == 1
     end
 
-    test "returns 1 point for 4 or more keywords" do
-      assert Games.calculate_points(4) == 1
-      assert Games.calculate_points(5) == 1
-      assert Games.calculate_points(10) == 1
+    test "always returns at least 1 point" do
+      # Edge case: should never return 0 or negative points
+      assert Games.calculate_points(10, 10) == 1
+      assert Games.calculate_points(100, 100) == 1
     end
   end
 

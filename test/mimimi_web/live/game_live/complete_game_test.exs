@@ -112,9 +112,11 @@ defmodule MimimiWeb.GameLive.CompleteGameTest do
       assert p1_html =~ "Bilder zur Auswahl"
 
       # ========================================
-      # STEP 6: Player 1 picks the CORRECT word (after 1 keyword = 5 points)
+      # STEP 6: Player 1 picks the CORRECT word (after 1 keyword)
       # ========================================
       correct_word_id = round1.word_id
+      total_keywords_round1 = length(round1.keyword_ids)
+      expected_points_round1 = Games.calculate_points(1, total_keywords_round1)
 
       p1_view
       |> element("button[phx-click='guess_word'][phx-value-word_id='#{correct_word_id}']")
@@ -126,7 +128,7 @@ defmodule MimimiWeb.GameLive.CompleteGameTest do
       # Verify player 1 sees success feedback
       p1_html = render(p1_view)
       assert p1_html =~ "Richtig!"
-      assert p1_html =~ "+5 Punkte!"
+      assert p1_html =~ "+#{expected_points_round1} Punkte!"
       assert p1_html =~ "Warte auf andere Spieler..."
 
       # ========================================
@@ -164,7 +166,9 @@ defmodule MimimiWeb.GameLive.CompleteGameTest do
       player1_updated = Repo.get!(Games.Player, player1.id)
       player2_updated = Repo.get!(Games.Player, player2.id)
 
-      assert player1_updated.points == 5, "Player 1 should have 5 points (1 keyword revealed)"
+      assert player1_updated.points == expected_points_round1,
+             "Player 1 should have #{expected_points_round1} points (1 keyword revealed)"
+
       assert player2_updated.points == 0, "Player 2 should have 0 points (wrong answer)"
 
       # ========================================
@@ -195,6 +199,8 @@ defmodule MimimiWeb.GameLive.CompleteGameTest do
       # STEP 9: Both players pick CORRECT word in round 2
       # ========================================
       correct_word_id_r2 = round2.word_id
+      total_keywords_round2 = length(round2.keyword_ids)
+      expected_points_round2 = Games.calculate_points(2, total_keywords_round2)
 
       # Player 1 picks first
       p1_view
@@ -215,9 +221,9 @@ defmodule MimimiWeb.GameLive.CompleteGameTest do
       p2_html = render(p2_view)
 
       assert p1_html =~ "Richtig!"
-      assert p1_html =~ "+3 Punkte!"
+      assert p1_html =~ "+#{expected_points_round2} Punkte!"
       assert p2_html =~ "Richtig!"
-      assert p2_html =~ "+3 Punkte!"
+      assert p2_html =~ "+#{expected_points_round2} Punkte!"
 
       # ========================================
       # STEP 10: Wait for game to finish (no more rounds)
@@ -238,8 +244,14 @@ defmodule MimimiWeb.GameLive.CompleteGameTest do
       player1_final = Repo.get!(Games.Player, player1.id)
       player2_final = Repo.get!(Games.Player, player2.id)
 
-      assert player1_final.points == 8, "Player 1: 5 (round 1) + 3 (round 2) = 8 points"
-      assert player2_final.points == 3, "Player 2: 0 (round 1) + 3 (round 2) = 3 points"
+      expected_player1_total = expected_points_round1 + expected_points_round2
+      expected_player2_total = 0 + expected_points_round2
+
+      assert player1_final.points == expected_player1_total,
+             "Player 1: #{expected_points_round1} (round 1) + #{expected_points_round2} (round 2) = #{expected_player1_total} points"
+
+      assert player2_final.points == expected_player2_total,
+             "Player 2: 0 (round 1) + #{expected_points_round2} (round 2) = #{expected_player2_total} points"
 
       # ========================================
       # STEP 12: Verify leaderboard
@@ -249,11 +261,11 @@ defmodule MimimiWeb.GameLive.CompleteGameTest do
 
       # Player 1 should be first (more points)
       assert hd(leaderboard).id == player1.id
-      assert hd(leaderboard).points == 8
+      assert hd(leaderboard).points == expected_player1_total
 
       # Player 2 should be second
       assert Enum.at(leaderboard, 1).id == player2.id
-      assert Enum.at(leaderboard, 1).points == 3
+      assert Enum.at(leaderboard, 1).points == expected_player2_total
 
       # ========================================
       # STEP 13: Verify players are redirected to dashboard
@@ -268,9 +280,9 @@ defmodule MimimiWeb.GameLive.CompleteGameTest do
         live(player1_conn, "/dashboard/#{game.id}")
 
       assert dashboard_html =~ "Spiel fertig!"
-      # Should show winner (Player 1 with 8 points)
+      # Should show winner (Player 1 with more points)
       assert dashboard_html =~ player1.avatar
-      assert dashboard_html =~ "8"
+      assert dashboard_html =~ Integer.to_string(expected_player1_total)
     end
 
     test "three players complete game with different pick speeds" do
@@ -309,6 +321,8 @@ defmodule MimimiWeb.GameLive.CompleteGameTest do
 
       round = Games.get_current_round(game.id)
       correct_word_id = round.word_id
+      total_keywords = length(round.keyword_ids)
+      expected_points = Games.calculate_points(1, total_keywords)
 
       # Simulate keywords revealed
       send(p1_view.pid, {:keyword_revealed, 1, 6})
@@ -317,7 +331,7 @@ defmodule MimimiWeb.GameLive.CompleteGameTest do
       :timer.sleep(50)
 
       # ========================================
-      # Player 1 picks immediately (1 keyword = 5 points)
+      # Player 1 picks immediately (1 keyword revealed)
       # ========================================
       p1_view
       |> element("button[phx-click='guess_word'][phx-value-word_id='#{correct_word_id}']")
@@ -330,7 +344,7 @@ defmodule MimimiWeb.GameLive.CompleteGameTest do
       assert p1_html =~ "Warte auf andere Spieler"
 
       # ========================================
-      # Player 2 picks second (1 keyword = 5 points)
+      # Player 2 picks second (1 keyword revealed)
       # ========================================
       p2_view
       |> element("button[phx-click='guess_word'][phx-value-word_id='#{correct_word_id}']")
@@ -343,7 +357,7 @@ defmodule MimimiWeb.GameLive.CompleteGameTest do
       assert p2_html =~ "Warte auf andere Spieler"
 
       # ========================================
-      # Player 3 picks last (1 keyword = 5 points)
+      # Player 3 picks last (1 keyword revealed)
       # ========================================
       p3_view
       |> element("button[phx-click='guess_word'][phx-value-word_id='#{correct_word_id}']")
@@ -363,9 +377,9 @@ defmodule MimimiWeb.GameLive.CompleteGameTest do
       player2_final = Repo.get!(Games.Player, player2.id)
       player3_final = Repo.get!(Games.Player, player3.id)
 
-      assert player1_final.points == 5
-      assert player2_final.points == 5
-      assert player3_final.points == 5
+      assert player1_final.points == expected_points
+      assert player2_final.points == expected_points
+      assert player3_final.points == expected_points
 
       # Game should be over
       game_updated = Repo.get!(Games.Game, game.id)
@@ -400,6 +414,8 @@ defmodule MimimiWeb.GameLive.CompleteGameTest do
       round = Games.get_current_round(game.id)
       correct_word_id = round.word_id
       wrong_word_id = Enum.find(round.possible_words_ids, &(&1 != correct_word_id))
+      total_keywords_round = length(round.keyword_ids)
+      expected_points = Games.calculate_points(1, total_keywords_round)
 
       # Reveal first keyword
       send(p1_view.pid, {:keyword_revealed, 1, 6})
@@ -426,7 +442,7 @@ defmodule MimimiWeb.GameLive.CompleteGameTest do
 
       assert p1_html =~ "Leider falsch"
       assert p2_html =~ "Richtig!"
-      assert p2_html =~ "+5 Punkte!"
+      assert p2_html =~ "+#{expected_points} Punkte!"
 
       # Both should see the correct word
       correct_word = Mimimi.WortSchule.get_word(correct_word_id)
@@ -442,13 +458,13 @@ defmodule MimimiWeb.GameLive.CompleteGameTest do
 
       assert player1_final.points == 0, "Player 1 picked wrong, should have 0 points"
 
-      assert player2_final.points == 5,
-             "Player 2 picked correct with 1 keyword, should have 5 points"
+      assert player2_final.points == expected_points,
+             "Player 2 picked correct with 1 keyword, should have #{expected_points} points"
 
       # Verify leaderboard order
       leaderboard = Games.get_leaderboard(game.id)
       assert hd(leaderboard).id == player2.id
-      assert hd(leaderboard).points == 5
+      assert hd(leaderboard).points == expected_points
     end
 
     test "2-player game advances to next round when one player doesn't pick before timeout" do
@@ -486,6 +502,8 @@ defmodule MimimiWeb.GameLive.CompleteGameTest do
       assert round1.position == 1
 
       correct_word_id = round1.word_id
+      total_keywords_round1 = length(round1.keyword_ids)
+      expected_points_round1 = Games.calculate_points(1, total_keywords_round1)
 
       # Reveal first keyword
       send(p1_view.pid, {:keyword_revealed, 1, 6})
@@ -519,7 +537,9 @@ defmodule MimimiWeb.GameLive.CompleteGameTest do
       player1_updated = Repo.get!(Games.Player, player1.id)
       player2_updated = Repo.get!(Games.Player, player2.id)
 
-      assert player1_updated.points == 5, "Player 1 should have 5 points"
+      assert player1_updated.points == expected_points_round1,
+             "Player 1 should have #{expected_points_round1} points"
+
       assert player2_updated.points == 0, "Player 2 should have 0 points (didn't pick)"
 
       # ========================================
@@ -544,8 +564,10 @@ defmodule MimimiWeb.GameLive.CompleteGameTest do
       # ROUND 2: Complete normally to verify game continues
       # ========================================
       correct_word_id_r2 = round2.word_id
+      total_keywords_round2 = length(round2.keyword_ids)
+      expected_points_round2 = Games.calculate_points(2, total_keywords_round2)
 
-      # Reveal second keyword (at 12 seconds total = 2 keywords shown = 3 points)
+      # Reveal second keyword (at 12 seconds total = 2 keywords shown)
       send(p1_view.pid, {:keyword_revealed, 2, 12})
       send(p2_view.pid, {:keyword_revealed, 2, 12})
       :timer.sleep(50)
@@ -571,8 +593,14 @@ defmodule MimimiWeb.GameLive.CompleteGameTest do
       player1_final = Repo.get!(Games.Player, player1.id)
       player2_final = Repo.get!(Games.Player, player2.id)
 
-      assert player1_final.points == 8, "Player 1: 5 (round 1) + 3 (round 2) = 8 points"
-      assert player2_final.points == 3, "Player 2: 0 (round 1) + 3 (round 2) = 3 points"
+      expected_player1_total = expected_points_round1 + expected_points_round2
+      expected_player2_total = 0 + expected_points_round2
+
+      assert player1_final.points == expected_player1_total,
+             "Player 1: #{expected_points_round1} (round 1) + #{expected_points_round2} (round 2) = #{expected_player1_total} points"
+
+      assert player2_final.points == expected_player2_total,
+             "Player 2: 0 (round 1) + #{expected_points_round2} (round 2) = #{expected_player2_total} points"
     end
   end
 end

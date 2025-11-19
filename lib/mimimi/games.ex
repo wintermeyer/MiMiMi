@@ -9,9 +9,6 @@ defmodule Mimimi.Games do
 
   # Constants
   @lobby_timeout_seconds 15 * 60
-  @points_one_keyword 5
-  @points_two_keywords 3
-  @points_three_keywords 1
 
   # Compile-time environment check
   # IMPORTANT: Mix is not available in production releases, so we check at compile time
@@ -857,7 +854,7 @@ defmodule Mimimi.Games do
         keyword_ids =
           word_data.keywords
           |> Enum.shuffle()
-          |> Enum.take(3)
+          |> Enum.take(5)
           |> Enum.map(& &1.id)
 
         distractor_ids =
@@ -982,18 +979,17 @@ defmodule Mimimi.Games do
   end
 
   @doc """
-  Calculates points for a pick.
-  Formula:
-  - 1 keyword = 5 points
-  - 2 keywords = 3 points
-  - 3 keywords = 1 point
+  Calculates points for a pick based on percentage of keywords revealed.
+
+  Formula: max(1, 6 - ceil(keywords_shown / total_keywords * 5))
+
+  Examples:
+  - 5-keyword word: 5→4→3→2→1 points (20%, 40%, 60%, 80%, 100%)
+  - 4-keyword word: 4→3→2→1 points (25%, 50%, 75%, 100%)
+  - 3-keyword word: 4→2→1 points (33%, 67%, 100%)
   """
-  def calculate_points(keywords_shown, _total_keywords \\ 5) do
-    case keywords_shown do
-      1 -> @points_one_keyword
-      2 -> @points_two_keywords
-      _ -> @points_three_keywords
-    end
+  def calculate_points(keywords_shown, total_keywords) do
+    max(1, 6 - ceil(keywords_shown / total_keywords * 5))
   end
 
   # Word and Keyword functions
