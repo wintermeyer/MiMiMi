@@ -316,7 +316,7 @@ defmodule MimimiWeb.HomeLive.Index do
 
   defp render_word_types_selector(assigns) do
     ~H"""
-    <details class="group/details" id="word-types-details" open>
+    <details class="group/details" id="word-types-details">
       <summary class="flex items-center justify-between cursor-pointer list-none px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 transition-all duration-200">
         <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">
           Wortarten (optional)
@@ -331,7 +331,7 @@ defmodule MimimiWeb.HomeLive.Index do
           </path>
         </svg>
       </summary>
-      <div class="mt-3 space-y-3">
+      <div class="mt-3 space-y-3" onclick="event.stopPropagation()">
         <div class="grid grid-cols-2 gap-3">
           <.checkbox_button
             id="word-type-noun"
