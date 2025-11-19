@@ -746,7 +746,7 @@ defmodule MimimiWeb.DashboardLive.Show do
   defp render_host_dashboard(assigns) do
     ~H"""
     <div class="min-h-screen px-4 py-12 bg-gradient-to-b from-indigo-50 to-white dark:from-gray-950 dark:to-gray-900">
-      <div class="w-full max-w-6xl mx-auto">
+      <div class="w-full max-w-7xl mx-auto">
         <%= if assigns[:current_round] do %>
           <%!-- Round information --%>
           <div class="text-center mb-8">
@@ -758,200 +758,243 @@ defmodule MimimiWeb.DashboardLive.Show do
             </p>
           </div>
 
-          <%!-- Keywords display with progress bar --%>
-          <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 mb-8">
-            <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
-              Schlüsselwörter
-            </h2>
-            <div class="flex flex-wrap gap-3">
-              <%= for {keyword, index} <- Enum.with_index(@keywords, 1) do %>
-                <% # A keyword is fully revealed if we've moved past it
-                is_revealed = index < @keywords_revealed
-                # The current keyword is the one being revealed right now
-                is_current = index == @keywords_revealed
-                # Not yet reached
-                is_upcoming = index > @keywords_revealed
+          <%!-- Two column layout for desktop --%>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <%!-- Left Column: Keywords and Word Choices --%>
+            <div class="space-y-6">
+              <%!-- Keywords display with progress bar --%>
+              <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
+                <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                  Schlüsselwörter
+                </h2>
+                <div class="flex flex-wrap gap-3">
+                  <%= for {keyword, index} <- Enum.with_index(@keywords, 1) do %>
+                    <% # A keyword is fully revealed if we've moved past it
+                    is_revealed = index < @keywords_revealed
+                    # The current keyword is the one being revealed right now
+                    is_current = index == @keywords_revealed
+                    # Not yet reached
+                    is_upcoming = index > @keywords_revealed
 
-                # Calculate progress for the current keyword
-                progress_percent =
-                  if is_current && @keywords_revealed > 0 do
-                    # Time since this keyword was revealed
-                    # For keyword N, it was revealed at time (N-1) * interval
-                    # So the time it's been showing is: elapsed - (N-1) * interval
-                    keyword_revealed_at = (@keywords_revealed - 1) * @game.clues_interval
-                    time_showing = @time_elapsed - keyword_revealed_at
+                    # Calculate progress for the current keyword
+                    progress_percent =
+                      if is_current && @keywords_revealed > 0 do
+                        # Time since this keyword was revealed
+                        # For keyword N, it was revealed at time (N-1) * interval
+                        # So the time it's been showing is: elapsed - (N-1) * interval
+                        keyword_revealed_at = (@keywords_revealed - 1) * @game.clues_interval
+                        time_showing = @time_elapsed - keyword_revealed_at
 
-                    # Progress is how much of the interval has passed
-                    min(time_showing / @game.clues_interval * 100, 100) |> round()
-                  else
-                    0
-                  end %>
-                <div class={
-                  [
-                    "relative overflow-hidden px-4 py-2 rounded-2xl font-semibold transition-all duration-300 transform",
-                    cond do
-                      is_revealed ->
-                        # Fully revealed keywords show with purple gradient
-                        "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg scale-100"
+                        # Progress is how much of the interval has passed
+                        min(time_showing / @game.clues_interval * 100, 100) |> round()
+                      else
+                        0
+                      end %>
+                    <div class={
+                      [
+                        "relative overflow-hidden px-4 py-2 rounded-2xl font-semibold transition-all duration-300 transform",
+                        cond do
+                          is_revealed ->
+                            # Fully revealed keywords show with purple gradient
+                            "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg scale-100"
 
-                      is_current ->
-                        # Current keyword shows gray background with progress bar
-                        "bg-gray-300 dark:bg-gray-700 text-gray-900 dark:text-gray-100 scale-100"
+                          is_current ->
+                            # Current keyword shows gray background with progress bar
+                            "bg-gray-300 dark:bg-gray-700 text-gray-900 dark:text-gray-100 scale-100"
 
-                      is_upcoming ->
-                        # Upcoming keywords are dimmed
-                        "bg-gray-300 dark:bg-gray-700 text-gray-400 dark:text-gray-500 scale-95 opacity-60"
-                    end
-                  ]
-                }>
-                  <%= if is_current && progress_percent > 0 do %>
-                    <%!-- Progress bar for current keyword --%>
-                    <div
-                      class="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 opacity-30"
-                      style={"width: #{progress_percent}%; transition: width 0.5s linear;"}
-                    >
-                    </div>
-                  <% end %>
-                  <span class="relative z-10">
-                    {if is_revealed || is_current, do: keyword.name, else: "???"}
-                  </span>
-                </div>
-              <% end %>
-            </div>
-          </div>
-
-          <%!-- Word Choices Grid --%>
-          <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-6 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 mb-8">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Bilder zur Auswahl
-            </h3>
-            <% word_picks = calculate_word_picks(@round_analytics) %>
-            <div class="grid grid-cols-3 gap-3">
-              <%= for word <- @possible_words do %>
-                <% picks = Map.get(word_picks, word.id, %{correct: 0, wrong: 0}) %>
-                <div class="relative aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 group hover:border-purple-300 dark:hover:border-purple-600 transition-all duration-300">
-                  <%= if word.image_url do %>
-                    <img
-                      src={word.image_url}
-                      alt={word.name}
-                      class="w-full h-full object-cover"
-                    />
-                    <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2">
-                      <p class="text-white text-sm font-semibold text-center truncate">
-                        {word.name}
-                      </p>
-                    </div>
-                  <% else %>
-                    <div class="w-full h-full flex flex-col items-center justify-center">
-                      <span class="text-4xl mb-2">🖼️</span>
-                      <p class="text-xs text-gray-600 dark:text-gray-400 font-semibold text-center px-2">
-                        {word.name}
-                      </p>
-                    </div>
-                  <% end %>
-                  <div class="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
-                  </div>
-
-                  <%!-- Pick indicators (dots) --%>
-                  <%= if picks.correct > 0 || picks.wrong > 0 do %>
-                    <div class="absolute top-2 right-2 flex flex-col gap-1">
-                      <%= if picks.correct > 0 do %>
-                        <div class="flex items-center gap-1 bg-green-500 rounded-full px-2 py-1 shadow-lg">
-                          <div class="w-2 h-2 bg-white rounded-full"></div>
-                          <span class="text-white text-xs font-bold">{picks.correct}</span>
+                          is_upcoming ->
+                            # Upcoming keywords are dimmed
+                            "bg-gray-300 dark:bg-gray-700 text-gray-400 dark:text-gray-500 scale-95 opacity-60"
+                        end
+                      ]
+                    }>
+                      <%= if is_current && progress_percent > 0 do %>
+                        <%!-- Progress bar for current keyword --%>
+                        <div
+                          class="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 opacity-30"
+                          style={"width: #{progress_percent}%; transition: width 0.5s linear;"}
+                        >
                         </div>
                       <% end %>
-                      <%= if picks.wrong > 0 do %>
-                        <div class="flex items-center gap-1 bg-red-500 rounded-full px-2 py-1 shadow-lg">
-                          <div class="w-2 h-2 bg-white rounded-full"></div>
-                          <span class="text-white text-xs font-bold">{picks.wrong}</span>
-                        </div>
-                      <% end %>
+                      <span class="relative z-10">
+                        {if is_revealed || is_current, do: keyword.name, else: "???"}
+                      </span>
                     </div>
                   <% end %>
                 </div>
-              <% end %>
+              </div>
+
+              <%!-- Word Choices Grid --%>
+              <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-6 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  Bilder zur Auswahl
+                </h3>
+                <% word_picks = calculate_word_picks(@round_analytics) %>
+                <div class="grid grid-cols-3 gap-3">
+                  <%= for word <- @possible_words do %>
+                    <% picks = Map.get(word_picks, word.id, %{correct: 0, wrong: 0}) %>
+                    <div class="relative aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 group hover:border-purple-300 dark:hover:border-purple-600 transition-all duration-300">
+                      <%= if word.image_url do %>
+                        <img
+                          src={word.image_url}
+                          alt={word.name}
+                          class="w-full h-full object-cover"
+                        />
+                        <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                          <p class="text-white text-sm font-semibold text-center truncate">
+                            {word.name}
+                          </p>
+                        </div>
+                      <% else %>
+                        <div class="w-full h-full flex flex-col items-center justify-center">
+                          <span class="text-4xl mb-2">🖼️</span>
+                          <p class="text-xs text-gray-600 dark:text-gray-400 font-semibold text-center px-2">
+                            {word.name}
+                          </p>
+                        </div>
+                      <% end %>
+                      <div class="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
+                      </div>
+
+                      <%!-- Pick indicators (dots) --%>
+                      <%= if picks.correct > 0 || picks.wrong > 0 do %>
+                        <div class="absolute top-2 right-2 flex flex-col gap-1">
+                          <%= if picks.correct > 0 do %>
+                            <div class="flex items-center gap-1 bg-green-500 rounded-full px-2 py-1 shadow-lg">
+                              <div class="w-2 h-2 bg-white rounded-full"></div>
+                              <span class="text-white text-xs font-bold">{picks.correct}</span>
+                            </div>
+                          <% end %>
+                          <%= if picks.wrong > 0 do %>
+                            <div class="flex items-center gap-1 bg-red-500 rounded-full px-2 py-1 shadow-lg">
+                              <div class="w-2 h-2 bg-white rounded-full"></div>
+                              <span class="text-white text-xs font-bold">{picks.wrong}</span>
+                            </div>
+                          <% end %>
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
             </div>
-          </div>
 
-          <%!-- Players with their pick status and chosen word --%>
-          <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 mb-8">
-            <h2 class="text-lg font-semibold mb-6 text-gray-900 dark:text-white">
-              Spieler Auswahl
-            </h2>
+            <%!-- Right Column: Player Selection and Leaderboard --%>
+            <div class="space-y-6">
+              <%!-- Players with their pick status and chosen word --%>
+              <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
+                <h2 class="text-lg font-semibold mb-6 text-gray-900 dark:text-white">
+                  Spieler Auswahl
+                </h2>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <%= for player_pick <- @round_analytics.players_picked do %>
-                <div class={[
-                  "relative rounded-2xl p-4 transition-all duration-300 border-2",
-                  if(player_pick.is_correct,
-                    do: "bg-green-50 dark:bg-green-900/20 border-green-500 dark:border-green-400",
-                    else: "bg-red-50 dark:bg-red-900/20 border-red-500 dark:border-red-400"
-                  )
-                ]}>
-                  <div class="flex items-start gap-4">
-                    <%!-- Player avatar --%>
-                    <div class="flex-shrink-0">
-                      <div class="relative">
-                        <span class="text-5xl">{player_pick.player.avatar}</span>
-                        <div class={[
-                          "absolute -top-1 -right-1 w-6 h-6 rounded-full shadow-lg flex items-center justify-center",
-                          if(player_pick.is_correct,
-                            do: "bg-green-500",
-                            else: "bg-red-500"
+                <div class="grid grid-cols-1 gap-4">
+                  <%= for player_pick <- @round_analytics.players_picked do %>
+                    <div class={[
+                      "relative rounded-2xl p-4 transition-all duration-300 border-2",
+                      if(player_pick.is_correct,
+                        do: "bg-green-50 dark:bg-green-900/20 border-green-500 dark:border-green-400",
+                        else: "bg-red-50 dark:bg-red-900/20 border-red-500 dark:border-red-400"
+                      )
+                    ]}>
+                      <div class="flex items-start gap-4">
+                        <%!-- Player avatar --%>
+                        <div class="flex-shrink-0">
+                          <div class="relative">
+                            <span class="text-5xl">{player_pick.player.avatar}</span>
+                            <div class={[
+                              "absolute -top-1 -right-1 w-6 h-6 rounded-full shadow-lg flex items-center justify-center",
+                              if(player_pick.is_correct,
+                                do: "bg-green-500",
+                                else: "bg-red-500"
+                              )
+                            ]}>
+                              <span class="text-white text-sm font-bold">
+                                {if player_pick.is_correct, do: "✓", else: "✗"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <%!-- Picked word with image --%>
+                        <div class="flex-1 min-w-0">
+                          <div class="flex items-center gap-3 mb-2">
+                            <%= if player_pick.picked_word.image_url do %>
+                              <img
+                                src={player_pick.picked_word.image_url}
+                                alt={player_pick.picked_word.name}
+                                class="w-16 h-16 object-cover rounded-lg border-2 border-gray-300 dark:border-gray-600"
+                              />
+                            <% else %>
+                              <div class="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                                <span class="text-2xl">🖼️</span>
+                              </div>
+                            <% end %>
+                            <div class="flex-1">
+                              <p class="font-semibold text-gray-900 dark:text-white">
+                                {player_pick.picked_word.name}
+                              </p>
+                              <p class="text-xs text-gray-600 dark:text-gray-400">
+                                {player_pick.keywords_shown} Hinweise • {player_pick.time}s
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  <% end %>
+                  <%= for player <- @round_analytics.players_not_picked do %>
+                    <div class="relative rounded-2xl p-4 bg-gray-100 dark:bg-gray-800 border-2 border-dashed border-gray-300 dark:border-gray-600 animate-pulse">
+                      <div class="flex items-center gap-4">
+                        <span class="text-5xl opacity-50">{player.avatar}</span>
+                        <div class="flex-1">
+                          <p class="text-gray-500 dark:text-gray-400 font-medium">
+                            Wartet auf Antwort...
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+
+              <%!-- Current leaderboard --%>
+              <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
+                <h2 class="text-lg font-semibold mb-6 text-gray-900 dark:text-white">
+                  Aktuelle Rangliste
+                </h2>
+
+                <div class="space-y-2">
+                  <%= for {player, index} <- Enum.with_index(Enum.sort_by(@game.players, & &1.points, :desc)) do %>
+                    <div class={[
+                      "relative flex items-center justify-between p-4 rounded-xl transition-all duration-300 overflow-hidden",
+                      if(index == 0,
+                        do:
+                          "bg-gradient-to-r from-yellow-400 to-orange-400 text-white shadow-lg shadow-yellow-500/30",
+                        else: "bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700"
+                      )
+                    ]}>
+                      <div class="relative flex items-center gap-4">
+                        <span class="text-2xl font-bold">{index + 1}.</span>
+                        <span class="text-4xl">{player.avatar}</span>
+                        <span class={[
+                          "font-semibold",
+                          if(index == 0,
+                            do: "text-white",
+                            else: "text-gray-900 dark:text-white"
                           )
                         ]}>
-                          <span class="text-white text-sm font-bold">
-                            {if player_pick.is_correct, do: "✓", else: "✗"}
-                          </span>
-                        </div>
+                          {player.points} Punkte
+                        </span>
                       </div>
                     </div>
-                    <%!-- Picked word with image --%>
-                    <div class="flex-1 min-w-0">
-                      <div class="flex items-center gap-3 mb-2">
-                        <%= if player_pick.picked_word.image_url do %>
-                          <img
-                            src={player_pick.picked_word.image_url}
-                            alt={player_pick.picked_word.name}
-                            class="w-16 h-16 object-cover rounded-lg border-2 border-gray-300 dark:border-gray-600"
-                          />
-                        <% else %>
-                          <div class="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                            <span class="text-2xl">🖼️</span>
-                          </div>
-                        <% end %>
-                        <div class="flex-1">
-                          <p class="font-semibold text-gray-900 dark:text-white">
-                            {player_pick.picked_word.name}
-                          </p>
-                          <p class="text-xs text-gray-600 dark:text-gray-400">
-                            {player_pick.keywords_shown} Hinweise • {player_pick.time}s
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <% end %>
                 </div>
-              <% end %>
-              <%= for player <- @round_analytics.players_not_picked do %>
-                <div class="relative rounded-2xl p-4 bg-gray-100 dark:bg-gray-800 border-2 border-dashed border-gray-300 dark:border-gray-600 animate-pulse">
-                  <div class="flex items-center gap-4">
-                    <span class="text-5xl opacity-50">{player.avatar}</span>
-                    <div class="flex-1">
-                      <p class="text-gray-500 dark:text-gray-400 font-medium">
-                        Wartet auf Antwort...
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              <% end %>
+              </div>
             </div>
           </div>
 
-          <%!-- Game performance statistics --%>
+          <%!-- Game performance statistics (full width below columns) --%>
           <%= if @game_stats.played_rounds > 0 do %>
-            <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 mb-8">
+            <div class="backdrop-blur-xl bg-white/70 dark:bg-gray-800/70 rounded-3xl p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 mt-6">
               <h2 class="text-lg font-semibold mb-6 text-gray-900 dark:text-white">
                 Bisherige Leistung
               </h2>

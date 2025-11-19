@@ -46,7 +46,7 @@ defmodule MimimiWeb.Layouts do
       </div>
     </header>
 
-    <main class="pb-20">
+    <main>
       {render_slot(@inner_block)}
     </main>
 
@@ -100,20 +100,45 @@ defmodule MimimiWeb.Layouts do
   end
 
   @doc """
-  Renders the footer with copyright and active games count.
+  Renders the footer with copyright, active games count, legal links and funding information.
   """
   attr :active_games, :integer, default: 0
 
   def footer(assigns) do
     ~H"""
-    <footer class="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-3">
-      <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2 text-sm">
-        <div class="text-gray-600 dark:text-gray-400">
-          © 2025 MiMiMi
-        </div>
-        <div class="text-gray-600 dark:text-gray-400">
-          Aktive Spiele:
-          <span class="font-bold text-purple-600 dark:text-purple-400">{@active_games}</span>
+    <footer class="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md border-t border-gray-200/50 dark:border-gray-700/50 px-4 py-4 mt-8">
+      <div class="max-w-7xl mx-auto">
+        <div class="flex flex-col sm:flex-row justify-between items-center gap-3 text-sm">
+          <div class="flex flex-col sm:flex-row items-center gap-3">
+            <div class="text-gray-600 dark:text-gray-400">
+              © 2025 MiMiMi
+            </div>
+            <div class="hidden sm:block text-gray-300 dark:text-gray-600">•</div>
+            <a
+              href="https://wort.schule/seite/impressum"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors duration-200"
+            >
+              Impressum
+            </a>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <div class="text-gray-600 dark:text-gray-400">
+              Aktive Spiele:
+              <span class="font-bold text-purple-600 dark:text-purple-400">{@active_games}</span>
+            </div>
+            <div class="hidden sm:block text-gray-300 dark:text-gray-600">•</div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-gray-500 dark:text-gray-500">Gefördert durch:</span>
+              <img
+                src="/images/BMBFSFJ_de_v1__Web_farbig.webp"
+                alt="Bundesministerium für Familie, Senioren, Frauen und Jugend"
+                class="h-24 w-auto"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </footer>
