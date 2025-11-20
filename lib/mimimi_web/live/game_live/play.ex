@@ -74,7 +74,7 @@ defmodule MimimiWeb.GameLive.Play do
       end
 
       # Subscribe to player presence changes to update online status
-      Phoenix.PubSub.subscribe(Mimimi.PubSub, "presence:game:#{game_id}:players")
+      Phoenix.PubSub.subscribe(Mimimi.PubSub, "game:#{game_id}:players")
 
       # Track player presence so host can see when players disconnect
       Mimimi.Presence.track(
@@ -174,12 +174,9 @@ defmodule MimimiWeb.GameLive.Play do
 
   @impl true
   def terminate(_reason, socket) do
-    # Stop the game server when leaving gameplay
-    if socket.assigns[:game] && socket.assigns.game.state == "game_running" do
-      Games.stop_game_server(socket.assigns.game.id)
-    end
-
     # Only remove player if game is still in waiting state
+    # During gameplay, the player's avatar will automatically show as offline
+    # via Presence tracking - the game continues for other players
     if socket.assigns[:game] && socket.assigns.game.state == "waiting_for_players" do
       game_id = socket.assigns.game.id
       user_id = socket.assigns.current_user.id
@@ -251,7 +248,7 @@ defmodule MimimiWeb.GameLive.Play do
     {:noreply, assign(socket, :game, game)}
   end
 
-  def handle_info({:presence, _presence_event}, socket) do
+  def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff"}, socket) do
     # Update online players status when presence changes (someone joins or leaves)
     game_id = socket.assigns.game.id
     online_players = Games.get_players_online_status(game_id)
