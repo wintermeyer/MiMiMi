@@ -20,6 +20,10 @@ defmodule MimimiWeb.DashboardLive.Show do
     stored_token = Map.get(session, host_token_key)
     is_host = stored_token == game.host_token
 
+    # Read show_markers preference from session (cookie-backed)
+    show_markers = Map.get(session, "show_markers", false)
+    socket = assign(socket, :show_markers, show_markers)
+
     # Check if user is a player in this game
     player = Games.get_player_by_game_and_user(game_id, user.id)
     is_player = !is_nil(player)
@@ -510,6 +514,15 @@ defmodule MimimiWeb.DashboardLive.Show do
     {:noreply, socket}
   end
 
+  def handle_event("toggle_markers", _params, socket) do
+    new_value = !socket.assigns.show_markers
+
+    {:noreply,
+     socket
+     |> assign(:show_markers, new_value)
+     |> push_event("set-cookie", %{name: "show_markers", value: to_string(new_value), days: 365})}
+  end
+
   def handle_event("start_new_game", _params, socket) do
     game = socket.assigns.game
     current_user = socket.assigns.current_user
@@ -834,9 +847,34 @@ defmodule MimimiWeb.DashboardLive.Show do
       <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2">
         Runde {@current_round.position} von {@game.rounds_count}
       </h1>
-      <p class="text-lg text-gray-600 dark:text-gray-400">
+      <p class="text-lg text-gray-600 dark:text-gray-400 mb-4">
         Lehrkraft Dashboard
       </p>
+      <%!-- Toggle for showing/hiding guess markers --%>
+      <div class="inline-flex items-center gap-3 px-4 py-2 bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-xl border border-gray-200/50 dark:border-gray-700/50">
+        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+          Antworten anzeigen
+        </span>
+        <button
+          type="button"
+          phx-click="toggle_markers"
+          class={[
+            "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2",
+            if(@show_markers,
+              do: "bg-purple-600",
+              else: "bg-gray-200 dark:bg-gray-700"
+            )
+          ]}
+          role="switch"
+          aria-checked={@show_markers}
+        >
+          <span class={[
+            "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+            if(@show_markers, do: "translate-x-5", else: "translate-x-0")
+          ]}>
+          </span>
+        </button>
+      </div>
     </div>
     """
   end
@@ -891,8 +929,8 @@ defmodule MimimiWeb.DashboardLive.Show do
             <div class="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 opacity-0 group-hover:opacity-10 transition-opacity duration-300">
             </div>
 
-            <%!-- Pick indicators (dots) --%>
-            <%= if picks.correct > 0 || picks.wrong > 0 do %>
+            <%!-- Pick indicators (dots) - only show when markers are enabled --%>
+            <%= if @show_markers && (picks.correct > 0 || picks.wrong > 0) do %>
               <div class="absolute top-2 right-2 flex flex-col gap-1">
                 <%= if picks.correct > 0 do %>
                   <div class="flex items-center gap-1 bg-green-500 rounded-full px-2 py-1 shadow-lg">
@@ -926,9 +964,13 @@ defmodule MimimiWeb.DashboardLive.Show do
         <%= for player_pick <- @round_analytics.players_picked do %>
           <div class={[
             "relative rounded-2xl p-4 transition-all duration-300 border-2",
-            if(player_pick.is_correct,
-              do: "bg-green-50 dark:bg-green-900/20 border-green-500 dark:border-green-400",
-              else: "bg-red-50 dark:bg-red-900/20 border-red-500 dark:border-red-400"
+            if(@show_markers,
+              do:
+                if(player_pick.is_correct,
+                  do: "bg-green-50 dark:bg-green-900/20 border-green-500 dark:border-green-400",
+                  else: "bg-red-50 dark:bg-red-900/20 border-red-500 dark:border-red-400"
+                ),
+              else: "bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700"
             )
           ]}>
             <div class="flex items-start gap-4">
@@ -936,17 +978,19 @@ defmodule MimimiWeb.DashboardLive.Show do
               <div class="flex-shrink-0">
                 <div class="relative">
                   <span class="text-5xl">{player_pick.player.avatar}</span>
-                  <div class={[
-                    "absolute -top-1 -right-1 w-6 h-6 rounded-full shadow-lg flex items-center justify-center",
-                    if(player_pick.is_correct,
-                      do: "bg-green-500",
-                      else: "bg-red-500"
-                    )
-                  ]}>
-                    <span class="text-white text-sm font-bold">
-                      {if player_pick.is_correct, do: "✓", else: "✗"}
-                    </span>
-                  </div>
+                  <%= if @show_markers do %>
+                    <div class={[
+                      "absolute -top-1 -right-1 w-6 h-6 rounded-full shadow-lg flex items-center justify-center",
+                      if(player_pick.is_correct,
+                        do: "bg-green-500",
+                        else: "bg-red-500"
+                      )
+                    ]}>
+                      <span class="text-white text-sm font-bold">
+                        {if player_pick.is_correct, do: "✓", else: "✗"}
+                      </span>
+                    </div>
+                  <% end %>
                 </div>
               </div>
               <%!-- Picked word with image --%>

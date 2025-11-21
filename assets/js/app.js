@@ -77,6 +77,13 @@ window.addEventListener("phx:copy", (event) => {
   })
 })
 
+// Handle set-cookie event from LiveView
+window.addEventListener("phx:set-cookie", (event) => {
+  const { name, value, days } = event.detail
+  const expires = new Date(Date.now() + days * 864e5).toUTCString()
+  document.cookie = `${name}=${value}; expires=${expires}; path=/; SameSite=Lax`
+})
+
 window.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('click', (event) => {
     const stopPropArea = event.target.closest('[data-stop-propagation]')

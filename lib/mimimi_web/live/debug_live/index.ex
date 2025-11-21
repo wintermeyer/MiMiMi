@@ -48,9 +48,11 @@ defmodule MimimiWeb.DebugLive.Index do
             # Map erts version to OTP release
             otp_release = System.otp_release()
             "#{otp_release}.#{minor}"
+
           _ ->
             System.otp_release()
         end
+
       _ ->
         System.otp_release()
     end

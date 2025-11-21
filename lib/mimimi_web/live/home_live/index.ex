@@ -45,14 +45,22 @@ defmodule MimimiWeb.HomeLive.Index do
     end
   end
 
-  defp mount_home_page(socket, _session) do
+  defp mount_home_page(socket, session) do
     has_waiting_games = has_waiting_games?()
 
+    # Load saved preferences from session (backed by cookies)
+    saved_rounds = Map.get(session, "game_rounds_count", "3")
+    saved_interval = Map.get(session, "game_clues_interval", "9")
+    saved_grid = Map.get(session, "game_grid_size", "9")
+
+    saved_types =
+      Map.get(session, "game_word_types", ["Noun", "Verb", "Adjective", "Adverb", "Other"])
+
     initial_params = %{
-      "rounds_count" => "3",
-      "clues_interval" => "9",
-      "grid_size" => "9",
-      "word_types" => ["Noun", "Verb", "Adjective", "Adverb", "Other"]
+      "rounds_count" => saved_rounds,
+      "clues_interval" => saved_interval,
+      "grid_size" => saved_grid,
+      "word_types" => saved_types
     }
 
     {:ok,
@@ -73,6 +81,30 @@ defmodule MimimiWeb.HomeLive.Index do
 
   @impl true
   def handle_event("validate", %{"game" => game_params}, socket) do
+    # Save settings to cookies for persistence
+    socket =
+      socket
+      |> push_event("set-cookie", %{
+        name: "game_rounds_count",
+        value: game_params["rounds_count"] || "3",
+        days: 365
+      })
+      |> push_event("set-cookie", %{
+        name: "game_clues_interval",
+        value: game_params["clues_interval"] || "9",
+        days: 365
+      })
+      |> push_event("set-cookie", %{
+        name: "game_grid_size",
+        value: game_params["grid_size"] || "9",
+        days: 365
+      })
+      |> push_event("set-cookie", %{
+        name: "game_word_types",
+        value: Enum.join(game_params["word_types"] || [], ","),
+        days: 365
+      })
+
     {:noreply,
      socket
      |> assign(:form, to_form(game_params, as: :game))
