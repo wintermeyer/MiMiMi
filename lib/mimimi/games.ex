@@ -533,17 +533,33 @@ defmodule Mimimi.Games do
     Logger.info("Generating round #{position} for game #{game.id}")
 
     # Get word pools (this is cached by the database for subsequent calls)
-    target_word_ids =
+    target_word_ids_raw =
       WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 3, types: game.word_types)
 
     Logger.info(
-      "Found #{length(target_word_ids)} target words for game #{game.id} round #{position}"
+      "Found #{length(target_word_ids_raw)} potential target words for game #{game.id} round #{position}"
     )
 
-    all_word_ids =
+    # Validate that target words have actual image URLs from the API
+    target_word_ids = validate_word_images(target_word_ids_raw)
+
+    Logger.info(
+      "After image validation: #{length(target_word_ids)} valid target words for game #{game.id} round #{position}"
+    )
+
+    all_word_ids_raw =
       WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 1, types: game.word_types)
 
-    Logger.info("Found #{length(all_word_ids)} total words for game #{game.id} round #{position}")
+    Logger.info(
+      "Found #{length(all_word_ids_raw)} potential words for game #{game.id} round #{position}"
+    )
+
+    # Validate that all words have actual image URLs from the API
+    all_word_ids = validate_word_images(all_word_ids_raw)
+
+    Logger.info(
+      "After image validation: #{length(all_word_ids)} valid words for game #{game.id} round #{position}"
+    )
 
     # Get already used target words from existing rounds to ensure uniqueness
     used_target_word_ids =
@@ -558,11 +574,11 @@ defmodule Mimimi.Games do
 
     # Validate we have enough words
     if Enum.empty?(available_target_word_ids) do
-      raise "No available target words for game #{game.id} round #{position}. Total target words: #{length(target_word_ids)}, used: #{length(used_target_word_ids)}"
+      raise "Nicht genügend Zielwörter mit gültigen Bildern verfügbar für Runde #{position}. Gesamt: #{length(target_word_ids)}, Bereits verwendet: #{length(used_target_word_ids)}"
     end
 
     if Enum.empty?(all_word_ids) do
-      raise "No words available in word pool for game #{game.id} round #{position}"
+      raise "Keine Wörter mit gültigen Bildern im Pool für Runde #{position}"
     end
 
     Logger.info(
@@ -798,27 +814,98 @@ defmodule Mimimi.Games do
   # Round functions
 
   @doc """
+  Validates that words have valid image URLs from the external API.
+  Returns only the word IDs that have actual image URLs available.
+  This filters out words where the database says there's an image but the API doesn't return one.
+
+  ## Examples
+
+      iex> Games.validate_word_images([123, 456, 789])
+      [123, 789]  # 456 had no valid image URL
+  """
+  def validate_word_images([]), do: []
+
+  def validate_word_images(word_ids) when is_list(word_ids) do
+    alias Mimimi.WortSchule.ImageHelper
+
+    # Validate images in parallel for performance
+    word_ids
+    |> Task.async_stream(
+      fn word_id ->
+        url = ImageHelper.image_url_for_word(word_id)
+        {word_id, url != nil and is_binary(url) and url != ""}
+      end,
+      timeout: :infinity,
+      max_concurrency: 10
+    )
+    |> Enum.reduce([], fn
+      {:ok, {word_id, true}}, acc -> [word_id | acc]
+      _, acc -> acc
+    end)
+    |> Enum.reverse()
+  end
+
+  @doc """
+  Validates that all keywords for a word have valid names.
+  Returns true if all keywords have non-empty names.
+  """
+  def validate_keywords([]), do: false
+
+  def validate_keywords(keyword_ids) when is_list(keyword_ids) do
+    keywords_map = Mimimi.WortSchule.get_words_batch(keyword_ids)
+
+    Enum.all?(keyword_ids, fn keyword_id ->
+      keyword = Map.get(keywords_map, keyword_id)
+      keyword != nil and keyword.name != nil and keyword.name != ""
+    end)
+  end
+
+  @doc """
   Generates all rounds for a game using WortSchule data.
   Fetches words with images and keywords from the external WortSchule database.
   Filters words by the configured word types.
+  Validates that all words have actual image URLs from the API.
   """
   def generate_rounds(%Game{} = game) do
+    require Logger
     alias Mimimi.WortSchule
 
     # Get words with at least 3 keywords for target words, filtered by word types
-    target_word_ids =
+    target_word_ids_raw =
       WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 3, types: game.word_types)
 
+    Logger.info("Found #{length(target_word_ids_raw)} potential target words for game #{game.id}")
+
+    # Validate that target words have actual image URLs from the API
+    target_word_ids = validate_word_images(target_word_ids_raw)
+
+    Logger.info(
+      "After image validation: #{length(target_word_ids)} valid target words for game #{game.id}"
+    )
+
     if length(target_word_ids) < game.rounds_count do
-      raise "Not enough words with 3+ keywords to generate #{game.rounds_count} rounds for word types: #{Enum.join(game.word_types, ", ")}"
+      raise "Nicht genügend Wörter mit gültigen Bildern verfügbar. Benötigt: #{game.rounds_count}, Verfügbar: #{length(target_word_ids)}. Wortarten: #{Enum.join(game.word_types, ", ")}"
     end
 
     # Get all words with at least 1 keyword for distractors, filtered by word types
-    all_word_ids =
+    all_word_ids_raw =
       WortSchule.get_word_ids_with_keywords_and_images(min_keywords: 1, types: game.word_types)
 
-    if length(all_word_ids) < game.rounds_count * (game.grid_size - 1) do
-      raise "Not enough words available to generate rounds with grid size #{game.grid_size} for word types: #{Enum.join(game.word_types, ", ")}"
+    Logger.info(
+      "Found #{length(all_word_ids_raw)} potential distractor words for game #{game.id}"
+    )
+
+    # Validate that distractor words have actual image URLs from the API
+    all_word_ids = validate_word_images(all_word_ids_raw)
+
+    Logger.info(
+      "After image validation: #{length(all_word_ids)} valid distractor words for game #{game.id}"
+    )
+
+    required_distractors = game.rounds_count * (game.grid_size - 1)
+
+    if length(all_word_ids) < required_distractors do
+      raise "Nicht genügend Wörter mit gültigen Bildern für #{game.grid_size}er Raster. Benötigt: #{required_distractors}, Verfügbar: #{length(all_word_ids)}. Wortarten: #{Enum.join(game.word_types, ", ")}"
     end
 
     # Generate all rounds data first, then batch insert
@@ -848,6 +935,7 @@ defmodule Mimimi.Games do
     alias Mimimi.WortSchule
 
     target_word_id = Enum.random(available_targets)
+    new_targets = available_targets -- [target_word_id]
 
     case WortSchule.get_complete_word(target_word_id) do
       {:ok, word_data} ->
@@ -857,36 +945,46 @@ defmodule Mimimi.Games do
           |> Enum.take(5)
           |> Enum.map(& &1.id)
 
-        distractor_ids =
-          (all_word_ids -- [target_word_id])
-          |> Enum.shuffle()
-          |> Enum.take(game.grid_size - 1)
+        keywords_valid = validate_keywords(keyword_ids)
+        enough_keywords = length(keyword_ids) >= 3
 
-        possible_words_ids = Enum.shuffle([target_word_id | distractor_ids])
+        cond do
+          # Valid word with enough valid keywords - create round
+          keywords_valid and enough_keywords ->
+            distractor_ids =
+              (all_word_ids -- [target_word_id])
+              |> Enum.shuffle()
+              |> Enum.take(game.grid_size - 1)
 
-        round_data = %{
-          game_id: game.id,
-          word_id: target_word_id,
-          keyword_ids: keyword_ids,
-          possible_words_ids: possible_words_ids,
-          position: position,
-          state: "on_hold"
-        }
+            possible_words_ids = Enum.shuffle([target_word_id | distractor_ids])
 
-        # Remove the used target word from available targets to ensure uniqueness
-        new_targets = available_targets -- [target_word_id]
+            round_data = %{
+              game_id: game.id,
+              word_id: target_word_id,
+              keyword_ids: keyword_ids,
+              possible_words_ids: possible_words_ids,
+              position: position,
+              state: "on_hold"
+            }
 
-        generate_rounds_data(
-          game,
-          new_targets,
-          all_word_ids,
-          [round_data | acc],
-          position + 1
-        )
+            generate_rounds_data(
+              game,
+              new_targets,
+              all_word_ids,
+              [round_data | acc],
+              position + 1
+            )
+
+          # No more targets available - raise error
+          new_targets == [] ->
+            raise "Keine Zielwörter mit gültigen Stichwörtern verfügbar für Runde #{position}"
+
+          # Skip invalid word and try another
+          true ->
+            generate_rounds_data(game, new_targets, all_word_ids, acc, position)
+        end
 
       {:error, :not_found} ->
-        new_targets = available_targets -- [target_word_id]
-
         if new_targets == [] do
           raise "Failed to fetch keyword data for all available target words"
         end

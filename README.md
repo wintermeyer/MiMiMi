@@ -57,6 +57,12 @@ A mobile-first multiplayer word-guessing game built with Phoenix LiveView for Ge
   - Players keep their original avatars in the rematch
   - Host sees status of online/offline players before starting
 
+### Image Validation
+- **Pre-validated Images**: All words used in games are validated to have actual working image URLs from the wort.schule API
+- **Keyword Validation**: Keywords are validated to have proper names before being used in rounds
+- **Graceful Error Handling**: Games fail early with informative German error messages if insufficient valid content is available
+- This prevents players from seeing broken images or "???" placeholder keywords during gameplay
+
 ### Word List Page
 - Browse all words from WortSchule database that have keywords and images
 - Visit `/list_words` to see the complete word collection with visuals

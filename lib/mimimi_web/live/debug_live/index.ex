@@ -44,7 +44,7 @@ defmodule MimimiWeb.DebugLive.Index do
       [_, erts_version] ->
         # Extract major.minor from erts version (e.g., "15.1" from erts-15.1)
         case String.split(erts_version, ".") do
-          [major, minor | _] ->
+          [_major, minor | _] ->
             # Map erts version to OTP release
             otp_release = System.otp_release()
             "#{otp_release}.#{minor}"
