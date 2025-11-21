@@ -11,6 +11,7 @@ defmodule MimimiWeb.GameLive.Play do
   """
   use MimimiWeb, :live_view
   alias Mimimi.Games
+  alias Mimimi.Analytics
   import MimimiWeb.GameComponents
   require Logger
 
@@ -131,6 +132,26 @@ defmodule MimimiWeb.GameLive.Play do
     # Load leaderboard for current standings
     leaderboard = Games.get_leaderboard(game_id)
 
+    # Initialize keyword reveal timestamps for analytics
+    # For keywords already revealed, we estimate timestamps based on clues_interval
+    now = DateTime.utc_now()
+
+    keyword_reveal_timestamps =
+      if keywords_shown > 0 do
+        keyword_ids = round.keyword_ids
+
+        Enum.reduce(1..keywords_shown, [], fn position, acc ->
+          keyword_id = Enum.at(keyword_ids, position - 1)
+          # Estimate: first keyword at t=0, then every clues_interval seconds
+          seconds_ago = initial_time_elapsed - (position - 1) * socket.assigns.game.clues_interval
+          revealed_at = DateTime.add(now, -seconds_ago, :second)
+          [{keyword_id, position, revealed_at} | acc]
+        end)
+        |> Enum.reverse()
+      else
+        []
+      end
+
     socket
     |> assign(:current_round, round)
     |> assign(:possible_words, possible_words)
@@ -145,6 +166,7 @@ defmodule MimimiWeb.GameLive.Play do
     |> assign(:correct_word_info, nil)
     |> assign(:leaderboard, leaderboard)
     |> assign(:all_players_picked, false)
+    |> assign(:keyword_reveal_timestamps, keyword_reveal_timestamps)
   end
 
   defp get_initial_round_state(game_id, round_state) when round_state == "playing" do
@@ -259,11 +281,33 @@ defmodule MimimiWeb.GameLive.Play do
     keywords_shown = min(revealed_count, length(socket.assigns.keywords))
     revealed_keywords = Enum.take(socket.assigns.keywords, keywords_shown)
 
+    # Track timestamp for newly revealed keywords (for analytics)
+    current_timestamps = socket.assigns[:keyword_reveal_timestamps] || []
+    current_count = length(current_timestamps)
+
+    keyword_reveal_timestamps =
+      if keywords_shown > current_count do
+        # New keywords were revealed, record their timestamps
+        round = socket.assigns.current_round
+        now = DateTime.utc_now()
+
+        new_timestamps =
+          Enum.map((current_count + 1)..keywords_shown, fn position ->
+            keyword_id = Enum.at(round.keyword_ids, position - 1)
+            {keyword_id, position, now}
+          end)
+
+        current_timestamps ++ new_timestamps
+      else
+        current_timestamps
+      end
+
     {:noreply,
      socket
      |> assign(:keywords_revealed, keywords_shown)
      |> assign(:time_elapsed, time_elapsed)
-     |> assign(:revealed_keywords, revealed_keywords)}
+     |> assign(:revealed_keywords, revealed_keywords)
+     |> assign(:keyword_reveal_timestamps, keyword_reveal_timestamps)}
   end
 
   def handle_info(:show_feedback_and_advance, socket) do
@@ -431,12 +475,15 @@ defmodule MimimiWeb.GameLive.Play do
            time: socket.assigns.time_elapsed,
            word_id: word_id
          }) do
-      {:ok, {_pick, all_picked}} ->
+      {:ok, {pick, all_picked}} ->
         if is_correct do
           # Reload player to get current points before adding new points
           fresh_player = Mimimi.Repo.get!(Games.Player, player.id)
           Games.add_points(fresh_player, points)
         end
+
+        # Record keyword effectiveness analytics asynchronously
+        record_keyword_effectiveness(socket, round, pick.id, is_correct)
 
         # Broadcast to all players that someone picked
         Games.broadcast_to_game(game.id, {:player_picked, player.id, is_correct})
@@ -914,4 +961,24 @@ defmodule MimimiWeb.GameLive.Play do
   defp grid_class(9), do: "grid-cols-3"
   defp grid_class(16), do: "grid-cols-4"
   defp grid_class(_), do: "grid-cols-3"
+
+  # Records keyword effectiveness analytics in a background task
+  defp record_keyword_effectiveness(socket, round, pick_id, is_correct) do
+    keyword_timestamps = socket.assigns[:keyword_reveal_timestamps] || []
+
+    if length(keyword_timestamps) > 0 do
+      picked_at = DateTime.utc_now()
+
+      Task.start(fn ->
+        Analytics.record_pick_effectiveness(
+          round.id,
+          pick_id,
+          round.word_id,
+          keyword_timestamps,
+          picked_at,
+          is_correct
+        )
+      end)
+    end
+  end
 end
