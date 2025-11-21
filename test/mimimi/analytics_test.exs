@@ -5,6 +5,9 @@ defmodule Mimimi.AnalyticsTest do
   alias Mimimi.Analytics.KeywordEffectiveness
   alias Mimimi.WortSchuleRepo
 
+  # These tests require the external WortSchule database with the keyword_effectiveness table
+  @moduletag :external_db
+
   describe "record_pick_effectiveness/6" do
     test "creates one record per keyword shown" do
       round_id = Ecto.UUID.generate()
